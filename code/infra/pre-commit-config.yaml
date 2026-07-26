@@ -1,0 +1,38 @@
+# 共享 pre-commit 配置（各仓库复用，技术架构第12章 CI 阶段）
+# 安装：pre-commit install
+# 密钥扫描防止真实凭证入库（技术架构第14.5章）
+
+repos:
+  # 通用密钥/敏感信息扫描
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.0
+    hooks:
+      - id: gitleaks
+
+  # 基础文件规整
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: ["--maxkb=2000"]
+
+  # Python（backend / ai-service 复用）
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.0
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  # 前端（mp-taro / admin-web 复用）
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v8.57.0
+    hooks:
+      - id: eslint
+        files: \.(js|jsx|ts|tsx)$
+        # 由各仓库本地 install 后触发
+        entry: npx eslint --ext .js,.jsx,.ts,.tsx

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ihm-platform
+description: 互联网医疗中心平台 Helm 部署骨架（技术架构第10.1章拓扑：ns-business/ns-ai/ns-data）
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

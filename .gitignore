@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# 运行时日志 / 临时产物
+*.out
+*.err
+*.log
+
+# 后端 / AI 服务生成物
+code/backend/*.db
+code/ai-service/tracking.db
+code/ai-service/mlruns/
+code/ai-service/mlartifacts/
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# 前端
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# 编辑器
+.vscode/
+.idea/
+.DS_Store

@@ -1,0 +1,45 @@
+# 共享 Python CI 模板（backend / ai-service 复用）
+# 技术架构第12章：代码 Lint → 单元测试 → 安全扫描 → 构建镜像 → 推送
+name: CI Python
+
+on:
+  workflow_call:
+    inputs:
+      service:
+        required: true
+        type: string
+        description: "服务名，如 backend / ai-service"
+      dockerfile:
+        required: false
+        type: string
+        default: Dockerfile
+      python-version:
+        required: false
+        type: string
+        default: "3.11"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff pytest httpx
+          pip install -r requirements.txt || pip install -e .
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Test (pytest)
+        run: pytest -q
+
+      - name: Build image
+        run: docker build -f ${{ inputs.dockerfile }} -t ${{ inputs.service }}:${{ github.sha }} .

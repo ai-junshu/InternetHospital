@@ -1,0 +1,169 @@
+# 互联网医疗中心平台 · 本地依赖一键编排
+# 用法：在 code/infra 目录执行 `docker compose up -d`
+# 包含：PostgreSQL(+pgvector) / Redis / MongoDB / ClickHouse / MinIO / Jaeger / Prometheus / Grafana
+# 说明：本编排仅用于本地开发，生产环境由 code/infra/k8s Helm 部署（见 README）。
+
+name: ihm-local
+
+networks:
+  ihm-net:
+    driver: bridge
+
+volumes:
+  pg-data:
+  redis-data:
+  mongo-data:
+  clickhouse-data:
+  minio-data:
+  prometheus-data:
+  grafana-data:
+
+services:
+  # ---------- 业务主库 + 向量 ----------
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: ihm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PG_USER:-ihm}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-ihm_dev_pwd}
+      POSTGRES_DB: ${PG_DATABASE:-ihm}
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      # 启动时启用 pgvector 扩展（技术架构第5/7章）
+      - ./docker/postgres/init-pgvector.sql:/docker-entrypoint-initdb.d/init-pgvector.sql:ro
+    networks:
+      - ihm-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-ihm} -d ${PG_DATABASE:-ihm}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- 缓存 / 会话 / 限流 ----------
+  redis:
+    image: redis:7-alpine
+    container_name: ihm-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - ihm-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- 文档 / 半结构化 ----------
+  mongo:
+    image: mongo:6
+    container_name: ihm-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-ihm}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-ihm_dev_pwd}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-ihm}
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - ihm-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- OLAP 经营看板 ----------
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: ihm-clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-ihm}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-ihm}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-ihm_dev_pwd}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "${CLICKHOUSE_HTTP_PORT:-8123}:8123"
+      - "${CLICKHOUSE_NATIVE_PORT:-19000}:9000"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      # 经营宽表 mt_store_metrics DDL 占位（技术架构第11.3章）
+      - ./docker/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - ihm-net
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  # ---------- 对象存储（生产 OSS/COS，本地 MinIO 等价替代，第14.4章） ----------
+  minio:
+    image: minio/minio:latest
+    container_name: ihm-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-ihm}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-ihm_dev_pwd}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - ihm-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- 链路追踪（OpenTelemetry + Jaeger，第15.5章） ----------
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: ihm-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    networks:
+      - ihm-net
+
+  # ---------- 指标采集 ----------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ihm-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - prometheus-data:/prometheus
+    networks:
+      - ihm-net
+
+  # ---------- 看板可视化 ----------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ihm-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - ihm-net

@@ -1,0 +1,77 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "panels": [
+    {
+      "id": 1,
+      "title": "每日到店数",
+      "type": "timeseries",
+      "datasource": { "type": "clickhouse", "uid": "clickhouse" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT date, sum(appointment_cnt) AS 到店数 FROM mt_store_metrics WHERE $__timeFilter(date) GROUP BY date ORDER BY date"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "每日成交客户数",
+      "type": "timeseries",
+      "datasource": { "type": "clickhouse", "uid": "clickhouse" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT date, sum(deal_customers) AS 成交客户 FROM mt_store_metrics WHERE $__timeFilter(date) GROUP BY date ORDER BY date"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "复购客户数 / NPS",
+      "type": "timeseries",
+      "datasource": { "type": "clickhouse", "uid": "clickhouse" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT date, sum(repurchase_customers) AS 复购客户 FROM mt_store_metrics WHERE $__timeFilter(date) GROUP BY date ORDER BY date"
+        },
+        {
+          "refId": "B",
+          "format": "time_series",
+          "rawSql": "SELECT date, avg(nps_avg) AS NPS FROM mt_store_metrics WHERE $__timeFilter(date) GROUP BY date ORDER BY date"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "门店明细",
+      "type": "table",
+      "datasource": { "type": "clickhouse", "uid": "clickhouse" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT date, store_id, store_name, region, appointment_cnt, arrival_cnt, deal_customers, repurchase_customers, nps_avg FROM mt_store_metrics WHERE $__timeFilter(date) ORDER BY date DESC, store_id LIMIT 500"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["互联网医疗中心平台", "健康数据中台"],
+  "templating": { "list": [] },
+  "time": { "from": "now-90d", "to": "now" },
+  "timezone": "Asia/Shanghai",
+  "title": "门店经营看板",
+  "uid": "mt-store-metrics",
+  "version": 1
+}

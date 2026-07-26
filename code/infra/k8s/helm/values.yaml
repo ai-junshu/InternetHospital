@@ -1,0 +1,28 @@
+# 全局默认值（技术架构第10.1章：命名空间隔离）
+namespaces:
+  - ns-business   # 业务微服务 + 后台 Web
+  - ns-ai         # AI 决策服务（推理 / GPU 节点）
+  - ns-data       # 数据中台服务（采集/治理/资产）
+
+# 占位部署清单（真实镜像仓库与资源限制按环境覆盖）
+deployments:
+  backend:
+    enabled: true
+    namespace: ns-business
+    image: "{{ .Values.imageRegistry }}/backend:latest"
+    replicas: 2
+    port: 8000
+  aiService:
+    enabled: true
+    namespace: ns-ai
+    image: "{{ .Values.imageRegistry }}/ai-service:latest"
+    replicas: 1
+    port: 8001
+  adminWeb:
+    enabled: true
+    namespace: ns-business
+    image: "{{ .Values.imageRegistry }}/admin-web:latest"
+    replicas: 1
+    port: 80
+
+imageRegistry: ""   # 生产填入 Harbor / ACR 私仓地址

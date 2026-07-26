@@ -1,0 +1,40 @@
+{{- if .Values.deployments.backend.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: {{ .Values.deployments.backend.namespace }}
+  labels:
+    app: backend
+spec:
+  replicas: {{ .Values.deployments.backend.replicas }}
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: {{ .Values.deployments.backend.image }}
+          ports:
+            - containerPort: {{ .Values.deployments.backend.port }}
+          # 密钥经 KMS/Vault 注入（第14.5章），不写死于镜像
+          envFrom:
+            - secretRef:
+                name: ihm-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: {{ .Values.deployments.backend.namespace }}
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: {{ .Values.deployments.backend.port }}
+      targetPort: {{ .Values.deployments.backend.port }}
+{{- end }}
