@@ -63,6 +63,7 @@ class IhOrder(Base, TimestampMixin):
     user_id: Mapped[int] = mapped_column(ForeignKey("ih_user.id"), index=True)
     type: Mapped[str] = mapped_column(String(16))  # rx / otc
     amount: Mapped[int] = mapped_column(Integer)
+    prescription_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     pay_status: Mapped[str] = mapped_column(String(16), default="unpaid")
 
 

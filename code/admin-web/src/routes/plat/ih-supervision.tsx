@@ -20,7 +20,7 @@ import {
 const rxColor: Record<string, string> = {
   approved: 'green',
   rejected: 'red',
-  pending: 'gold',
+  pending_audit: 'gold',
 }
 
 export default function IhSupervision() {
@@ -66,11 +66,11 @@ export default function IhSupervision() {
       valueType: 'option',
       width: 140,
       render: (_, r) =>
-        r.status === 'pending' ? (
+        r.status === 'pending_audit' ? (
           <Space>
             <a
               onClick={async () => {
-                await auditPrescription(r.id, { action: 'approve', reviewer_id: 1 })
+                await auditPrescription(r.id, { action: 'approve', reviewer_id: Number(localStorage.getItem('uid') || 1) })
                 actionRef.current?.reload()
                 message.success('已审核通过')
               }}
@@ -79,7 +79,7 @@ export default function IhSupervision() {
             </a>
             <a
               onClick={async () => {
-                await auditPrescription(r.id, { action: 'reject', reviewer_id: 1, note: '不合规' })
+                await auditPrescription(r.id, { action: 'reject', reviewer_id: Number(localStorage.getItem('uid') || 1), note: '不合规' })
                 actionRef.current?.reload()
                 message.success('已驳回')
               }}

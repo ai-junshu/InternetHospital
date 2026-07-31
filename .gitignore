@@ -22,6 +22,8 @@ code/ai-service/mlartifacts/
 .env
 .env.*
 !.env.example
+# 后端本地密钥（含 JWT_SECRET，禁止入库）
+code/backend/.env
 
 # 前端
 node_modules/

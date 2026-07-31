@@ -124,7 +124,12 @@ export async function listOrders(params: {
   return request<PageResult<Order>>(API.orders, { data: params })
 }
 
-export async function createOrder(body: { user_id: number; type?: string; amount?: number }) {
+export async function createOrder(body: {
+  user_id: number
+  type?: string
+  amount?: number
+  prescription_id?: number
+}) {
   return request<Order>(API.orders, {
     method: 'POST',
     data: body,

@@ -24,9 +24,16 @@ router = APIRouter(prefix="/orders", tags=["ih-订单"])
 async def create_order(
     body: OrderCreate, request: Request, _user: dict = Depends(current_user), db: AsyncSession = Depends(get_db)
 ):
+    if body.type == "rx" and not body.prescription_id:
+        raise BusinessError(ErrorCode.PARAM_INVALID, "处方药下单必须关联处方（凭方购买）")
     no = gen_no("ORD")
     order = IhOrder(
-        order_no=no, user_id=body.user_id, type=body.type, amount=body.amount, pay_status="unpaid"
+        order_no=no,
+        user_id=body.user_id,
+        type=body.type,
+        amount=body.amount,
+        prescription_id=body.prescription_id,
+        pay_status="unpaid",
     )
     db.add(order)
     await db.commit()

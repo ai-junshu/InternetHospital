@@ -16,6 +16,11 @@ import IhIndex from './routes/ih'
 import IhHospital from './routes/ih/hospital'
 import IhOperations from './routes/ih/operations'
 import DrugCatalogAdmin from './routes/ih/drug-catalog'
+import PatientAdmin from './routes/ih/patients'
+import OrderAdmin from './routes/ih/orders'
+import ConsultationAdmin from './routes/ih/consultations'
+import ScheduleAdmin from './routes/ih/schedules'
+import RxReview from './routes/ih/rx-review'
 import ComplianceReview from './routes/plat/compliance-review'
 import TherapistIndex from './routes/therapist'
 import TherapistCustomers from './routes/therapist/customers'
@@ -49,6 +54,11 @@ export default function App() {
           <Route path="hospital" element={<IhHospital />} />
           <Route path="operations" element={<IhOperations />} />
           <Route path="drug-catalog" element={<DrugCatalogAdmin />} />
+          <Route path="patients" element={<PatientAdmin />} />
+          <Route path="orders" element={<OrderAdmin />} />
+          <Route path="consultations" element={<ConsultationAdmin />} />
+          <Route path="schedules" element={<ScheduleAdmin />} />
+          <Route path="rx-review" element={<RxReview />} />
         </Route>
         <Route path="therapist" element={<TherapistIndex />}>
           <Route index element={<TherapistCustomers />} />

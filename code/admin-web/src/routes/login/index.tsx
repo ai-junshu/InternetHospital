@@ -32,6 +32,7 @@ export default function LoginPage() {
       }
       localStorage.setItem('token', token)
       localStorage.setItem('role', values.role)
+      localStorage.setItem('uid', (values.sub?.trim() || '1'))
       message.success('登录成功，正在进入后台')
       navigate('/', { replace: true })
       return true

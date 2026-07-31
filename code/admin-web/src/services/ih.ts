@@ -169,3 +169,64 @@ export async function updateDrug(
 export async function deleteDrug(id: number) {
   return http.delete(`${API.ihDrugs}/${id}`) as Promise<void>
 }
+
+// ---------------- 患者（用户） ----------------
+export interface IhPatient {
+  id: number
+  nickname?: string
+  phone?: string
+  gender?: string
+  age?: number
+  created_at?: string
+  is_deleted?: boolean
+}
+
+export async function listPatients(params: {
+  page?: number
+  page_size?: number
+  keyword?: string
+}) {
+  return http.get(API.ihUsers, { params }) as Promise<PageResult<IhPatient>>
+}
+
+export async function getPatient(id: number) {
+  return http.get(`${API.ihUsers}/${id}`) as Promise<IhPatient>
+}
+
+// ---------------- 订单支付（mock，待商户号） ----------------
+export async function payOrder(orderId: number) {
+  return http.post(`${API.ihOrders}/${orderId}/pay`, {}) as Promise<{
+    order_no: string
+    pay_status: string
+    prepay_id?: string
+  }>
+}
+
+// ---------------- 医生排班（医生/平台管理） ----------------
+export interface IhSchedule {
+  id: number
+  doctor_id: number
+  date: string
+  am: boolean
+  pm: boolean
+  status?: string
+  created_at?: string
+}
+
+export async function listSchedules(params: {
+  page?: number
+  page_size?: number
+  doctor_id?: number
+  date?: string
+}) {
+  return http.get(API.ihSchedules, { params }) as Promise<PageResult<IhSchedule>>
+}
+
+// ---------------- 问诊详情 / 结束 ----------------
+export async function getConsultation(id: number) {
+  return http.get(`${API.ihConsultations}/${id}`) as Promise<Consultation>
+}
+
+export async function endConsultation(id: number) {
+  return http.patch(`${API.ihConsultations}/${id}/end`, {}) as Promise<Consultation>
+}

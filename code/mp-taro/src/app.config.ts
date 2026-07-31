@@ -11,6 +11,8 @@ export default defineAppConfig({
     'pages/doctor-chat/index',
     'pages/doctor-schedule/index',
     'pages/drug-catalog/index',
+    'pages/doctor-rx-create/index',
+    'pages/prescription-detail/index',
   ],
   window: {
     navigationBarTitleText: '互联网医疗中心平台',

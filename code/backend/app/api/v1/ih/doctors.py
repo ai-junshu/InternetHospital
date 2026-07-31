@@ -5,10 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import BusinessError, ErrorCode
 from app.core.response import success
-from app.core.deps import get_db, current_user, actor_of
+from app.core.deps import get_db, current_user, actor_of, require_role
 from app.models.ih_models import IhDoctor
 from app.schemas.common import PageResult
-from app.schemas.ih import DoctorCreate, DoctorOut
+from app.schemas.ih import DoctorAuditIn, DoctorCreate, DoctorOut
 from app.services.audit import write_audit
 
 router = APIRouter(prefix="/doctors", tags=["ih-医师"])
@@ -75,4 +75,46 @@ async def get_doctor(doctor_id: int, _auth: dict = Depends(current_user), db: As
     doc = await db.get(IhDoctor, doctor_id)
     if not doc or doc.is_deleted:
         raise BusinessError(ErrorCode.RESOURCE_NOT_FOUND, "医师不存在")
+    return success(data=DoctorOut.model_validate(doc))
+
+
+@router.post("/{doctor_id}/approve", response_model=None)
+async def approve_doctor(
+    doctor_id: int, body: DoctorAuditIn, request: Request, _user: dict = Depends(require_role("platform")), db: AsyncSession = Depends(get_db)
+):
+    doc = await db.get(IhDoctor, doctor_id)
+    if not doc or doc.is_deleted:
+        raise BusinessError(ErrorCode.RESOURCE_NOT_FOUND, "医师不存在")
+    if body.action != "approve":
+        raise BusinessError(ErrorCode.PARAM_INVALID, "action 仅支持 approve")
+    doc.status = "approved"
+    await db.commit()
+    await db.refresh(doc)
+    await write_audit(
+        db, action="doctor.approve", resource="ih_doctor", role=_user.get("role"),
+        actor_id=actor_of(_user), after={"id": doctor_id, "status": "approved"},
+        ip=request.client.host if request.client else None,
+    )
+    return success(data=DoctorOut.model_validate(doc))
+
+
+@router.post("/{doctor_id}/reject", response_model=None)
+async def reject_doctor(
+    doctor_id: int, body: DoctorAuditIn, request: Request, _user: dict = Depends(require_role("platform")), db: AsyncSession = Depends(get_db)
+):
+    doc = await db.get(IhDoctor, doctor_id)
+    if not doc or doc.is_deleted:
+        raise BusinessError(ErrorCode.RESOURCE_NOT_FOUND, "医师不存在")
+    if body.action != "reject":
+        raise BusinessError(ErrorCode.PARAM_INVALID, "action 仅支持 reject")
+    if not body.note:
+        raise BusinessError(ErrorCode.PARAM_INVALID, "驳回需填写审核意见")
+    doc.status = "rejected"
+    await db.commit()
+    await db.refresh(doc)
+    await write_audit(
+        db, action="doctor.reject", resource="ih_doctor", role=_user.get("role"),
+        actor_id=actor_of(_user), after={"id": doctor_id, "status": "rejected"},
+        ip=request.client.host if request.client else None,
+    )
     return success(data=DoctorOut.model_validate(doc))

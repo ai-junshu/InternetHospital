@@ -16,10 +16,12 @@ export const API = {
   storeMetrics: '/mt/store-metrics',
   // 互联网医院（ih）
   ihDoctors: '/ih/doctors',
+  ihUsers: '/ih/users',
   ihConsultations: '/ih/consultations',
   ihOrders: '/ih/orders',
   ihPrescriptions: '/ih/prescriptions',
   ihDrugs: '/ih/drugs',
+  ihSchedules: '/ih/schedules',
   // 平台管理（plat）
   dataAssets: '/plat/data-assets',
   aiModels: '/plat/ai-models',

@@ -56,6 +56,31 @@ export async function listDataAssets(params: {
   return http.get(API.dataAssets, { params }) as Promise<PageResult<DataAsset>>
 }
 
+// ---------------- 模型上下线 / 删除 ----------------
+export async function setModelOnline(modelId: number) {
+  return http.post(`${API.aiModels}/${modelId}/online`) as Promise<AiModel>
+}
+
+export async function setModelOffline(modelId: number) {
+  return http.post(`${API.aiModels}/${modelId}/offline`) as Promise<AiModel>
+}
+
+export async function deleteModel(modelId: number) {
+  return http.delete(`${API.aiModels}/${modelId}`) as Promise<void>
+}
+
+export async function createDataAsset(body: Partial<DataAsset>) {
+  return http.post(API.dataAssets, body) as Promise<DataAsset>
+}
+
+export async function updateDataAsset(assetId: number, body: Partial<DataAsset>) {
+  return http.put(`${API.dataAssets}/${assetId}`, body) as Promise<DataAsset>
+}
+
+export async function deleteDataAsset(assetId: number) {
+  return http.delete(`${API.dataAssets}/${assetId}`) as Promise<void>
+}
+
 // ---------------- 审计日志（3.6.1 合规大脑，复用 P4 哈希链） ----------------
 export interface AuditLog {
   id: number
@@ -110,7 +135,7 @@ export async function submitCompliance(body: {
   title: string
   content_json?: Record<string, unknown>
 }) {
-  return http.post(API.compliance, body) as Promise<ComplianceItem>
+  return http.post(`${API.compliance}/submit`, body) as Promise<ComplianceItem>
 }
 
 export async function listCompliance(params: {

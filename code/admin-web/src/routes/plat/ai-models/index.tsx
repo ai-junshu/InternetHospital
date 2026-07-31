@@ -1,8 +1,8 @@
 import { useRef } from 'react'
 import { PageContainer, ProTable } from '@ant-design/pro-components'
-import { Tag } from 'antd'
+import { Tag, Button, App, Popconfirm } from 'antd'
 import type { ActionType, ProColumns } from '@ant-design/pro-components'
-import { listAiModels, type AiModel } from '@/services/plat'
+import { listAiModels, setModelOnline, setModelOffline, deleteModel, type AiModel } from '@/services/plat'
 
 const STATUS_COLOR: Record<string, string> = {
   online: 'green',
@@ -18,6 +18,25 @@ function fmtMetrics(m?: Record<string, unknown>) {
 
 export default function AiModelsAdmin() {
   const actionRef = useRef<ActionType>()
+  const { message } = App.useApp()
+  const role = localStorage.getItem('role')
+  const canEdit = role === 'platform'
+
+  const toggle = async (r: AiModel) => {
+    try {
+      if (r.status === 'online') await setModelOffline(r.id)
+      else await setModelOnline(r.id)
+      message.success('已更新')
+      actionRef.current?.reload()
+    } catch {}
+  }
+  const remove = async (r: AiModel) => {
+    try {
+      await deleteModel(r.id)
+      message.success('已删除')
+      actionRef.current?.reload()
+    } catch {}
+  }
 
   const columns: ProColumns<AiModel>[] = [
     { title: 'ID', dataIndex: 'id', width: 80, search: false },
@@ -43,6 +62,21 @@ export default function AiModelsAdmin() {
       render: (_, r) => fmtMetrics(r.metrics_json),
     },
     { title: '上线时间', dataIndex: 'online_at', width: 180, search: false },
+    {
+      title: '操作',
+      valueType: 'option',
+      render: (_, r) =>
+        canEdit
+          ? [
+              <a key="toggle" onClick={() => toggle(r)}>
+                {r.status === 'online' ? '下线' : '上线'}
+              </a>,
+              <Popconfirm key="del" title="确认删除该模型?" onConfirm={() => remove(r)}>
+                <a>删除</a>
+              </Popconfirm>,
+            ]
+          : [],
+    },
   ]
 
   return (

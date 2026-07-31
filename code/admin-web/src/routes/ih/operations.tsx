@@ -20,7 +20,7 @@ import {
 const rxColor: Record<string, string> = {
   approved: 'green',
   rejected: 'red',
-  pending: 'gold',
+  pending_audit: 'gold',
 }
 
 export default function IhOperations() {
@@ -29,7 +29,7 @@ export default function IhOperations() {
     ;(async () => {
       const [d, rx, c, o] = await Promise.all([
         listDoctors({ status: 'active', page: 1, page_size: 1 }),
-        listPrescriptions({ status: 'pending', page: 1, page_size: 1 }),
+        listPrescriptions({ status: 'pending_audit', page: 1, page_size: 1 }),
         listConsultations({ page: 1, page_size: 1 }),
         listOrders({ pay_status: 'paid', page: 1, page_size: 1 }),
       ])
@@ -66,11 +66,11 @@ export default function IhOperations() {
       valueType: 'option',
       width: 140,
       render: (_, r) =>
-        r.status === 'pending' ? (
+        r.status === 'pending_audit' ? (
           <Space>
             <a
               onClick={async () => {
-                await auditPrescription(r.id, { action: 'approve', reviewer_id: 1 })
+                await auditPrescription(r.id, { action: 'approve', reviewer_id: Number(localStorage.getItem('uid') || 1) })
                 actionRef.current?.reload()
                 message.success('已审核通过')
               }}
@@ -79,7 +79,7 @@ export default function IhOperations() {
             </a>
             <a
               onClick={async () => {
-                await auditPrescription(r.id, { action: 'reject', reviewer_id: 1, note: '不合规' })
+                await auditPrescription(r.id, { action: 'reject', reviewer_id: Number(localStorage.getItem('uid') || 1), note: '不合规' })
                 actionRef.current?.reload()
                 message.success('已驳回')
               }}

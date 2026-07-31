@@ -22,6 +22,11 @@ export default function BasicLayout() {
             routes: [
               { path: '/ih/hospital', name: '医院管理' },
               { path: '/ih/operations', name: '运营数据' },
+              { path: '/ih/patients', name: '患者管理' },
+              { path: '/ih/orders', name: '订单管理' },
+              { path: '/ih/consultations', name: '问诊会话' },
+              { path: '/ih/schedules', name: '医生排班' },
+              { path: '/ih/rx-review', name: '处方审核' },
             ],
           },
           {

@@ -16,6 +16,8 @@ const TABS = [
 
 export default function OrderPage() {
   const user = Taro.getStorageSync('user') || {}
+  const q = Taro.getCurrentInstance().router?.params || {}
+  const presetRxId = q.prescription_id ? Number(q.prescription_id) : undefined
   const [tab, setTab] = useState('all')
   const [list, setList] = useState<Order[]>([])
   const [loading, setLoading] = useState(false)
@@ -42,8 +44,22 @@ export default function OrderPage() {
   }, [tab])
 
   const handleBuy = async () => {
+    // 处方药必须凭方购买：未带处方 id 时引导开方
+    if (!presetRxId) {
+      Taro.showModal({
+        title: '需凭处方购买',
+        content: '处方药需先由医师在线开方，是否前往开方？',
+        success: (r) => r.confirm && Taro.navigateTo({ url: `/pages/doctor-rx-create/index?patient_id=${user.id}` }),
+      })
+      return
+    }
     try {
-      const order = await createOrder({ user_id: user.id, type: 'rx', amount: 0 })
+      const order = await createOrder({
+        user_id: user.id,
+        type: 'rx',
+        amount: 0,
+        prescription_id: presetRxId,
+      })
       await payOrder(order.id)
       Taro.showToast({ title: '购药成功', icon: 'success' })
       load()

@@ -150,6 +150,7 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - prometheus-data:/prometheus
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     networks:
       - ihm-net
 

@@ -59,6 +59,13 @@ class DoctorOut(BaseOut):
     status: str
 
 
+class DoctorAuditIn(BaseModel):
+    """医师入驻审核（通过/驳回）。"""
+    action: str  # approve / reject
+    reviewer_id: int
+    note: Optional[str] = None
+
+
 # ---------------- 处方 ----------------
 class PrescriptionItemIn(BaseModel):
     name: str
@@ -106,6 +113,7 @@ class OrderCreate(BaseModel):
     user_id: int
     type: str = "otc"  # rx | otc
     amount: int = 0
+    prescription_id: Optional[int] = None  # 处方药凭方购买：rx 类型必传
 
 
 class OrderPayIn(BaseModel):

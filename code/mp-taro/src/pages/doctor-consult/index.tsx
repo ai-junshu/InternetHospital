@@ -80,6 +80,16 @@ export default function DoctorConsult() {
           <Button type='primary' onClick={handleSend}>
             发送
           </Button>
+          <Button
+            style={{ marginTop: '8px' }}
+            onClick={() =>
+              Taro.navigateTo({
+                url: `/pages/doctor-rx-create/index?patient_id=${patientId}&doctor_id=${doctorId}&consultation_id=${consult?.id || ''}`,
+              })
+            }
+          >
+            结束问诊并开方
+          </Button>
         </View>
       )}
     </View>
