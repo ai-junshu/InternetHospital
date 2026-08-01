@@ -77,6 +77,8 @@ class DataAssetCreate(BaseModel):
     quality_score: Optional[float] = None
     update_freq: Optional[str] = None
     lineage_json: Optional[dict] = None
+    lifecycle_status: Optional[str] = None  # collected/cleaned/stored/analyzed/output/archived/destroyed
+    data_volume: Optional[int] = None
 
 
 class DataAssetUpdate(BaseModel):
@@ -87,6 +89,8 @@ class DataAssetUpdate(BaseModel):
     quality_score: Optional[float] = None
     update_freq: Optional[str] = None
     lineage_json: Optional[dict] = None
+    lifecycle_status: Optional[str] = None
+    data_volume: Optional[int] = None
 
 
 class DataAssetOut(BaseOut):
@@ -97,6 +101,42 @@ class DataAssetOut(BaseOut):
     quality_score: Optional[float] = None
     update_freq: Optional[str] = None
     lineage_json: Optional[dict] = None
+    lifecycle_status: str = "collected"
+    data_volume: Optional[int] = None
+    valuation_json: Optional[dict] = None
+
+
+class AssetLineageIn(BaseModel):
+    upstream_asset_id: int
+    downstream_asset_id: int
+    transform_logic: Optional[str] = None
+
+
+class AssetLineageOut(BaseOut):
+    upstream_asset_id: int
+    downstream_asset_id: int
+    transform_logic: Optional[str] = None
+
+
+class AssetValuationOut(BaseOut):
+    asset_id: int
+    quality_score: Optional[float] = None
+    data_volume: Optional[int] = None
+    sensitivity_level: Optional[str] = None
+    sensitivity_factor: float = 1.0
+    estimated_value: float = 0.0
+    formula: str = "quality_score * data_volume * sensitivity_factor"
+
+
+class AssetExportItem(BaseOut):
+    id: int
+    name: Optional[str] = None
+    owner: Optional[str] = None
+    sensitivity_level: Optional[str] = None
+    usage_scope: Optional[str] = None
+    update_freq: Optional[str] = None
+    lifecycle_status: str = "collected"
+    # 脱敏：对外输出不含 lineage_json / valuation_json 明细
 
 
 # ---------------- P6: 合规采集审核 ----------------

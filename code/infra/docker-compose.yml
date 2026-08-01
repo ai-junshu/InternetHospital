@@ -17,6 +17,8 @@ volumes:
   minio-data:
   prometheus-data:
   grafana-data:
+  milvus-etcd-data:
+  milvus-storage-data:
 
 services:
   # ---------- 业务主库 + 向量 ----------
@@ -168,3 +170,87 @@ services:
       - grafana-data:/var/lib/grafana
     networks:
       - ihm-net
+
+  # ===================== 以下为数据中台扩展组件（P3，2026-08-01 增补） =====================
+  # 说明：生产由 code/infra/k8s Helm 编排；本地按需在 `docker compose up -d` 后单独拉起：
+  #   docker compose up -d iceberg-rest milvus
+  # Spark / Flink 为重型可选组件，仅保留注释模板，不默认拉起。
+
+  # ---------- 数据湖 Iceberg（REST Catalog，借助已有 minio 作存储） ----------
+  iceberg-rest:
+    image: apache/iceberg-rest-fixture:latest
+    container_name: ihm-iceberg-rest
+    restart: unless-stopped
+    environment:
+      CATALOG_WAREHOUSE: s3://iceberg/
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-ihm}
+      CATALOG_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-ihm_dev_pwd}
+      CATALOG_S3_PATH_STYLE_ACCESS: "true"
+    ports:
+      - "${ICEBERG_REST_PORT:-8181}:8181"
+    depends_on:
+      - minio
+    networks:
+      - ihm-net
+
+  # ---------- 向量检索 Milvus（standalone：etcd + storage + milvus） ----------
+  milvus-etcd:
+    image: quay.io/coreos/etcd:v3.5.14
+    container_name: ihm-milvus-etcd
+    restart: unless-stopped
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+    volumes:
+      - milvus-etcd-data:/etcd
+    command: etcd -advertise-client-urls=http://milvus-etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    networks:
+      - ihm-net
+
+  milvus-storage:
+    image: minio/minio:latest
+    container_name: ihm-milvus-storage
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MILVUS_MINIO_USER:-milvus}
+      MINIO_ROOT_PASSWORD: ${MILVUS_MINIO_PASSWORD:-milvus_dev_pwd}
+    volumes:
+      - milvus-storage-data:/data
+    networks:
+      - ihm-net
+
+  milvus:
+    image: milvusdb/milvus:v2.4.13
+    container_name: ihm-milvus
+    restart: unless-stopped
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: milvus-etcd:2379
+      MINIO_ADDRESS: milvus-storage:9000
+      MINIO_ACCESS_KEY: ${MILVUS_MINIO_USER:-milvus}
+      MINIO_SECRET_KEY: ${MILVUS_MINIO_PASSWORD:-milvus_dev_pwd}
+    ports:
+      - "${MILVUS_PORT:-19530}:19530"
+    depends_on:
+      - milvus-etcd
+      - milvus-storage
+    networks:
+      - ihm-net
+
+  # ---------- 可选：批/流计算（重型，默认不拉起，按需取消注释） ----------
+  # spark:
+  #   image: bitnami/spark:3.5
+  #   container_name: ihm-spark
+  #   environment:
+  #     SPARK_MODE: master
+  #   networks: [ihm-net]
+  # flink:
+  #   image: flink:1.19-scala_2.12
+  #   container_name: ihm-flink
+  #   command: ["jobmanager"]
+  #   networks: [ihm-net]

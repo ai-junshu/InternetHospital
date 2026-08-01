@@ -11,10 +11,19 @@ from app.core.errors import BusinessError, ErrorCode
 from app.core.response import success
 from app.core.deps import get_db, require_role, actor_of
 from app.core.cache import cached, build_key, cache_delete_prefix
-from app.models.plat_models import PlatDataAsset
+from app.models.plat_models import PlatDataAsset, PlatDataLineage
 from app.schemas.common import PageResult
-from app.schemas.plat import DataAssetCreate, DataAssetOut, DataAssetUpdate
+from app.schemas.plat import (
+    DataAssetCreate,
+    DataAssetOut,
+    DataAssetUpdate,
+    AssetLineageIn,
+    AssetLineageOut,
+    AssetValuationOut,
+    AssetExportItem,
+)
 from app.services.audit import write_audit
+from app.services.data_asset_collector import collect_asset_metrics
 
 router = APIRouter(prefix="/data-assets", tags=["plat-数据资产"])
 
@@ -66,6 +75,32 @@ async def list_data_assets(
             page_size=page_size,
             items=[DataAssetOut.model_validate(r) for r in rows],
         )
+    )
+
+
+@router.get("/export", response_model=None)
+async def export_assets(
+    sensitivity_level: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_role(*_ROLES)),
+):
+    """对外输出清单（第15.3章 隐私计算/联邦学习，原始不出域）。
+
+    仅返回摘要字段（脱敏，不含 lineage_json / valuation_json 明细）。
+    """
+    conds = [PlatDataAsset.is_deleted.is_(False)]
+    if sensitivity_level:
+        conds.append(PlatDataAsset.sensitivity_level == sensitivity_level)
+    rows = (
+        await db.execute(
+            select(PlatDataAsset)
+            .where(*conds)
+            .order_by(PlatDataAsset.id.desc())
+            .limit(500)
+        )
+    ).scalars().all()
+    return success(
+        data=[AssetExportItem.model_validate(r).model_dump() for r in rows]
     )
 
 
@@ -183,3 +218,181 @@ async def delete_data_asset(
     )
     await cache_delete_prefix(build_key("assets"))  # 失效聚合列表缓存（P5）
     return success(message="已删除", data={"id": asset_id})
+
+
+# ===================== P1 数据资产闭环 =====================
+_LIFECYCLE_FLOW = {
+    "collected": "cleaned",
+    "cleaned": "stored",
+    "stored": "analyzed",
+    "analyzed": "output",
+    "output": "archived",
+    "archived": "destroyed",
+}
+_SENSITIVITY_FACTOR = {"L1": 1.0, "L2": 1.5, "L3": 2.5, "L4": 4.0}
+
+
+def _valuation(a: PlatDataAsset) -> dict:
+    """资产估值（融资用，第11.2章）：质量分 × 数据量 × 敏感度系数。"""
+    factor = _SENSITIVITY_FACTOR.get(a.sensitivity_level or "L1", 1.0)
+    volume = a.data_volume or 0
+    score = a.quality_score or 0.0
+    return {
+        "id": a.id,
+        "asset_id": a.id,
+        "quality_score": score,
+        "data_volume": volume,
+        "sensitivity_level": a.sensitivity_level,
+        "sensitivity_factor": factor,
+        "estimated_value": round(score * volume * factor, 2),
+        "formula": "quality_score * data_volume * sensitivity_factor",
+    }
+
+
+@router.get("/{asset_id}/lineage", response_model=None)
+async def get_asset_lineage(
+    asset_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_role(*_ROLES)),
+):
+    a = await db.get(PlatDataAsset, asset_id)
+    if not a or a.is_deleted:
+        raise BusinessError(ErrorCode.RESOURCE_NOT_FOUND, "数据资产不存在")
+    # 上游（我依赖谁）与下游（谁依赖我）
+    up = (
+        await db.execute(
+            select(PlatDataLineage).where(
+                PlatDataLineage.downstream_asset_id == asset_id
+            )
+        )
+    ).scalars().all()
+    down = (
+        await db.execute(
+            select(PlatDataLineage).where(
+                PlatDataLineage.upstream_asset_id == asset_id
+            )
+        )
+    ).scalars().all()
+    return success(
+        data={
+            "upstream": [AssetLineageOut.model_validate(r).model_dump() for r in up],
+            "downstream": [AssetLineageOut.model_validate(r).model_dump() for r in down],
+        }
+    )
+
+
+@router.post("/{asset_id}/lineage", response_model=None)
+async def add_asset_lineage(
+    asset_id: int,
+    body: AssetLineageIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_role(*_ROLES)),
+):
+    a = await db.get(PlatDataAsset, asset_id)
+    if not a or a.is_deleted:
+        raise BusinessError(ErrorCode.RESOURCE_NOT_FOUND, "数据资产不存在")
+    # 任意一端须为当前资产，禁止凭空建无关血缘
+    if body.upstream_asset_id != asset_id and body.downstream_asset_id != asset_id:
+        raise BusinessError(ErrorCode.PARAM_INVALID, "血缘须以当前资产为上游或下游")
+    link = PlatDataLineage(
+        upstream_asset_id=body.upstream_asset_id,
+        downstream_asset_id=body.downstream_asset_id,
+        transform_logic=body.transform_logic,
+    )
+    db.add(link)
+    await db.commit()
+    await db.refresh(link)
+    await write_audit(
+        db,
+        action="data_asset.lineage.add",
+        resource="plat_data_lineage",
+        role=_user.get("role"),
+        actor_id=actor_of(_user),
+        after=AssetLineageOut.model_validate(link).model_dump(mode="json"),
+        ip=request.client.host if request.client else None,
+    )
+    return success(data=AssetLineageOut.model_validate(link))
+
+
+@router.get("/{asset_id}/valuation", response_model=None)
+async def get_asset_valuation(
+    asset_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_role(*_ROLES)),
+):
+    a = await db.get(PlatDataAsset, asset_id)
+    if not a or a.is_deleted:
+        raise BusinessError(ErrorCode.RESOURCE_NOT_FOUND, "数据资产不存在")
+    val = _valuation(a)
+    a.valuation_json = val  # 物化最新估值，便于导出
+    await db.commit()
+    return success(data=AssetValuationOut(**val).model_dump())
+
+
+@router.post("/{asset_id}/lifecycle", response_model=None)
+async def advance_asset_lifecycle(
+    asset_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_role(*_ROLES)),
+):
+    a = await db.get(PlatDataAsset, asset_id)
+    if not a or a.is_deleted:
+        raise BusinessError(ErrorCode.RESOURCE_NOT_FOUND, "数据资产不存在")
+    cur = a.lifecycle_status
+    nxt = _LIFECYCLE_FLOW.get(cur)
+    if nxt is None:
+        raise BusinessError(ErrorCode.PARAM_INVALID, f"当前状态 {cur} 无后续流转")
+    before = DataAssetOut.model_validate(a).model_dump(mode="json")
+    a.lifecycle_status = nxt
+    await db.commit()
+    await db.refresh(a)
+    await write_audit(
+        db,
+        action="data_asset.lifecycle",
+        resource="plat_data_asset",
+        role=_user.get("role"),
+        actor_id=actor_of(_user),
+        before=before,
+        after=DataAssetOut.model_validate(a).model_dump(mode="json"),
+        ip=request.client.host if request.client else None,
+    )
+    return success(data=DataAssetOut.model_validate(a))
+
+
+@router.post("/{asset_id}/collect", response_model=None)
+async def collect_asset(
+    asset_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_role(*_ROLES)),
+):
+    """手动触发资产指标采集：从业务表聚合质量分与数据量回写（P1 运行时闭环）。"""
+    a = await db.get(PlatDataAsset, asset_id)
+    if not a or a.is_deleted:
+        raise BusinessError(ErrorCode.RESOURCE_NOT_FOUND, "数据资产不存在")
+    metrics = await collect_asset_metrics(db, a.name)
+    if metrics is None:
+        return success(
+            data=DataAssetOut.model_validate(a),
+            message="无匹配采集器，指标未变更",
+        )
+    before = DataAssetOut.model_validate(a).model_dump(mode="json")
+    if metrics.get("data_volume") is not None:
+        a.data_volume = metrics["data_volume"]
+    if metrics.get("quality_score") is not None:
+        a.quality_score = metrics["quality_score"]
+    await db.commit()
+    await db.refresh(a)
+    await write_audit(
+        db,
+        action="data_asset.collect",
+        resource="plat_data_asset",
+        role=_user.get("role"),
+        actor_id=actor_of(_user),
+        before=before,
+        after=DataAssetOut.model_validate(a).model_dump(mode="json"),
+        ip=request.client.host if request.client else None,
+    )
+    return success(data=DataAssetOut.model_validate(a))

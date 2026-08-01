@@ -77,6 +77,14 @@ class Settings(BaseSettings):
     # ai-service 内部调用（第12章 MLOps）
     ai_service_base_url: str = "http://127.0.0.1:8001"
 
+    # ---------------- P3 数据中台扩展组件连接（惰性，未编排不报错） ----------------
+    iceberg_rest_uri: str = "http://localhost:8181"
+    iceberg_warehouse: str = "s3://iceberg/"
+    iceberg_s3_endpoint: str = "http://localhost:9000"
+    iceberg_s3_access_key: str = "ihm"
+    iceberg_s3_secret_key: str = "ihm_dev_pwd"
+    milvus_uri: str = "http://localhost:19530"
+
     # CORS
     cors_origins: str = "http://localhost:3000,http://localhost:10086"
 

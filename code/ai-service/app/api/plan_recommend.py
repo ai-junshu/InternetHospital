@@ -6,6 +6,7 @@ import pandas as pd
 from app.core.response import success
 from app.schemas.predict import PlanRecommendOut
 from app.ml.model_loader import load_model
+from app.ml.feature_store import build_features
 from app.rag.retriever import build_query, build_rationale, retrieve
 
 router = APIRouter(prefix="/plan-recommend", tags=["方案推荐"])
@@ -23,15 +24,36 @@ class PlanRecommendReq(BaseModel):
     pain_score: float = 5.0
     chronic_count: int = 0
     pain_type: str | None = None
+    # P2 特征工程输入（原始指标，联邦取数提供）
+    nps: float = 0.0
+    effect_level: str | None = None
+    treatment_count: int = 0
+    adherent_count: int = 0
 
 
 @router.post("")
 async def recommend(req: PlanRecommendReq):
     model, version = load_model("plan_recommend")
+    # P2 特征工程：入参原始指标 → 标准化特征（原始不出域，联邦取数语义）
+    features = build_features(
+        req.customer_id,
+        {
+            "pain_type": req.pain_type,
+            "pain_score": req.pain_score,
+            "age": req.age,
+            "chronic_count": req.chronic_count,
+            "nps": req.nps,
+            "effect_level": req.effect_level,
+            "treatment_count": req.treatment_count,
+            "adherent_count": req.adherent_count,
+        },
+    )
     X = pd.DataFrame([{
-        "age": req.age,
-        "pain_score": req.pain_score,
-        "chronic_count": req.chronic_count,
+        "age": features["age"],
+        "pain_score": features["pain_score"],
+        "chronic_count": features["chronic_count"],
+        "adherence_rate": features["adherence_rate"],
+        "effect_score": features["effect_score"],
     }])
     idx = int(model.predict(X)[0])
     plan = PLANS.get(idx, PLANS[0])
@@ -45,6 +67,8 @@ async def recommend(req: PlanRecommendReq):
             "pain_score": req.pain_score,
             "chronic_count": req.chronic_count,
             "pain_type": req.pain_type,
+            "adherence_rate": features["adherence_rate"],
+            "effect_level": features["effect_level"],
         },
         plan=plan,
         hits=hits,

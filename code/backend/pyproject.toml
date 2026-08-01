@@ -27,6 +27,13 @@ dependencies = [
 dev = [
     "locust>=2.0",
 ]
+# P3 数据中台扩展组件（惰性客户端，按需安装，非运行时强制依赖）
+datalake = [
+    "pyiceberg>=0.6",
+]
+vector = [
+    "pymilvus>=2.4",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

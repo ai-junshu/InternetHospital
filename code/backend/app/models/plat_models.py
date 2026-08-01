@@ -22,6 +22,29 @@ class PlatDataAsset(Base, TimestampMixin):
     quality_score: Mapped[float | None] = mapped_column()
     update_freq: Mapped[str | None] = mapped_column(String(32))
     lineage_json: Mapped[dict | None] = mapped_column(JSON)
+    # P1 数据资产闭环：生命周期状态机 + 估值 + 数据量（第11.2/13章）
+    lifecycle_status: Mapped[str] = mapped_column(
+        String(16), default="collected", index=True
+    )  # collected/cleaned/stored/analyzed/output/archived/destroyed
+    data_volume: Mapped[int | None] = mapped_column(BigInteger, default=0)  # 样本/记录数
+    valuation_json: Mapped[dict | None] = mapped_column(JSON)  # 估值报告（融资用）
+
+
+class PlatDataLineage(Base, TimestampMixin):
+    """数据血缘关系（第11.2章）：资产间的上游→下游加工链路。
+
+    upstream/downstream 指向 plat_data_asset.id；transform_logic 描述加工逻辑
+    （如「mt_treatment_record → 治疗效果数据集：按客户聚合疗效四档」）。
+    """
+
+    __tablename__ = "plat_data_lineage"
+    upstream_asset_id: Mapped[int] = mapped_column(
+        ForeignKey("plat_data_asset.id"), index=True
+    )
+    downstream_asset_id: Mapped[int] = mapped_column(
+        ForeignKey("plat_data_asset.id"), index=True
+    )
+    transform_logic: Mapped[str | None] = mapped_column(String(512))
 
 
 class PlatAiModel(Base, TimestampMixin):
