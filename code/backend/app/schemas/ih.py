@@ -278,7 +278,7 @@ class DrugStockOut(BaseOut):
     pharmacy_id: int
     stock: int
     safety_stock: int
-    is_low: bool  # 低于安全库存阈值
+    is_low: bool = False  # 低于安全库存阈值（计算字段，审计快照允许默认）
 
 
 # ---------------- 投诉与售后 ----------------
