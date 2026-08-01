@@ -3,12 +3,17 @@
 从 .env 读取，真实密钥经环境变量注入，禁止硬编码（第14.5章）。
 """
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# 始终从 backend 项目根目录解析 .env，避免依赖进程启动 cwd（Windows uvicorn 子进程 cwd 易漂移）
+# config.py 位于 app/core/config.py -> parent(core).parent(app).parent(backend)
+_BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=str(_BACKEND_ROOT / ".env"), extra="ignore")
 
     # 基础
     app_name: str = "互联网医疗中心平台后端"
@@ -70,6 +75,12 @@ class Settings(BaseSettings):
     wxpay_cert_serial: str = ""       # 商户证书序列号（请求签名用）
     wxpay_notify_base_url: str = ""   # 支付回调基础地址，如 https://api.example.com
     wxpay_appid: str = ""             # 拉起支付的小程序 appid（一般同 wx_appid）
+    # 商户 API 私钥（pem，PKCS#8，含 -----BEGIN PRIVATE KEY-----）。
+    # 经环境变量 WXPAY_PRIVATE_KEY_PATH 注入文件路径；禁止硬编码（第14.5章）。
+    wxpay_private_key_path: str = ""
+    # 平台证书缓存目录（自动下载的微信平台证书按 serial 缓存为 pem，避免重复下载）。
+    # 默认 {backend_root}/.cache/wxpay_certs/，可用 WXPAY_CERT_CACHE_DIR 覆盖。
+    wxpay_cert_cache_dir: str = str(_BACKEND_ROOT / ".cache" / "wxpay_certs")
     # dev 沙箱开关：True 时跳过真实微信调用与回调验签，用模拟 prepay/模拟回调跑通状态机。
     # 生产必须置 False 并配置真实商户凭证。
     wxpay_dev_sandbox: bool = True

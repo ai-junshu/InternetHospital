@@ -17,4 +17,7 @@ export const API = {
   painAssessments: '/mt/pain-assessments',
   carePlans: '/mt/care-plans',
   treatmentRecords: '/mt/treatment-records',
+  effectTracking: '/mt/effect-tracking',
+  repurchasePredictions: '/mt/repurchase-predictions',
+  riskProfiles: '/mt/risk-profiles',
 }

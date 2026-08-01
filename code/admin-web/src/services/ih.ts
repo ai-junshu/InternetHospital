@@ -74,6 +74,7 @@ export interface Order {
   type: string
   amount: number
   pay_status: string
+  prescription_id?: number | null
   created_at?: string
 }
 
@@ -171,14 +172,16 @@ export async function deleteDrug(id: number) {
 }
 
 // ---------------- 患者（用户） ----------------
+// 后端 UserOut 返回脱敏字段（real_name_mask/phone_mask/id_card_mask），
+// 前端需按此命名渲染（不可臆造 nickname/phone/gender）。
 export interface IhPatient {
   id: number
-  nickname?: string
-  phone?: string
-  gender?: string
-  age?: number
-  created_at?: string
-  is_deleted?: boolean
+  openid: string
+  real_name_mask?: string
+  phone_mask?: string
+  id_card_mask?: string
+  user_type?: string
+  role: string
 }
 
 export async function listPatients(params: {
@@ -219,8 +222,46 @@ export async function listSchedules(params: {
   page_size?: number
   doctor_id?: number
   work_date?: string
+  am_pm?: string
+  status?: string
 }) {
   return http.get(API.ihSchedules, { params }) as Promise<PageResult<IhSchedule>>
+}
+
+// 后端 DoctorScheduleCreate：work_date/am_pm/start_time/end_time 必填
+export async function createSchedule(body: {
+  doctor_id?: number
+  work_date: string
+  am_pm: string
+  start_time: string
+  end_time: string
+  capacity?: number
+  remark?: string
+}) {
+  return http.post(API.ihSchedules, body) as Promise<IhSchedule>
+}
+
+export async function updateSchedule(
+  id: number,
+  body: {
+    work_date?: string
+    am_pm?: string
+    start_time?: string
+    end_time?: string
+    status?: string
+    capacity?: number
+    remark?: string
+  },
+) {
+  return http.patch(`${API.ihSchedules}/${id}`, body) as Promise<IhSchedule>
+}
+
+export async function deleteSchedule(id: number) {
+  return http.delete(`${API.ihSchedules}/${id}`) as Promise<void>
+}
+
+export async function getSchedule(id: number) {
+  return http.get(`${API.ihSchedules}/${id}`) as Promise<IhSchedule>
 }
 
 // ---------------- 问诊详情 / 结束 ----------------

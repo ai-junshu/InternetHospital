@@ -16,17 +16,11 @@ export default function PatientAdmin() {
 
   const columns: ProColumns<IhPatient>[] = [
     { title: 'ID', dataIndex: 'id', width: 80, search: false },
-    { title: '昵称', dataIndex: 'nickname' },
-    { title: '手机号', dataIndex: 'phone', search: false },
-    { title: '性别', dataIndex: 'gender', width: 80, search: false },
-    { title: '年龄', dataIndex: 'age', width: 80, search: false },
-    {
-      title: '注册时间',
-      dataIndex: 'created_at',
-      width: 180,
-      search: false,
-      render: (_, r) => (r.created_at ? new Date(r.created_at).toLocaleString() : '-'),
-    },
+    { title: '姓名(脱敏)', dataIndex: 'real_name_mask', search: false },
+    { title: '手机号(脱敏)', dataIndex: 'phone_mask', search: false },
+    { title: '身份证(脱敏)', dataIndex: 'id_card_mask', search: false },
+    { title: '角色', dataIndex: 'role', width: 100, search: false },
+    { title: '用户类型', dataIndex: 'user_type', width: 120, search: false },
     {
       title: '操作',
       valueType: 'option',
@@ -51,7 +45,7 @@ export default function PatientAdmin() {
           const res = await listPatients({
             page: params.current,
             page_size: params.pageSize,
-            keyword: params.nickname as string | undefined,
+            keyword: params.real_name_mask as string | undefined,
           })
           return { data: res.items, total: res.total, success: true }
         }}
@@ -60,18 +54,13 @@ export default function PatientAdmin() {
         {detail && (
           <Descriptions column={1} bordered size="small">
             <Descriptions.Item label="ID">{detail.id}</Descriptions.Item>
-            <Descriptions.Item label="昵称">{detail.nickname || '-'}</Descriptions.Item>
-            <Descriptions.Item label="手机号">{detail.phone || '-'}</Descriptions.Item>
-            <Descriptions.Item label="性别">{detail.gender || '-'}</Descriptions.Item>
-            <Descriptions.Item label="年龄">{detail.age ?? '-'}</Descriptions.Item>
-            <Descriptions.Item label="状态">
-              <Tag color={detail.is_deleted ? 'red' : 'green'}>
-                {detail.is_deleted ? '已注销' : '正常'}
-              </Tag>
+            <Descriptions.Item label="姓名(脱敏)">{detail.real_name_mask || '-'}</Descriptions.Item>
+            <Descriptions.Item label="手机号(脱敏)">{detail.phone_mask || '-'}</Descriptions.Item>
+            <Descriptions.Item label="身份证(脱敏)">{detail.id_card_mask || '-'}</Descriptions.Item>
+            <Descriptions.Item label="角色">
+              <Tag color="blue">{detail.role || 'patient'}</Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="注册时间">
-              {detail.created_at ? new Date(detail.created_at).toLocaleString() : '-'}
-            </Descriptions.Item>
+            <Descriptions.Item label="用户类型">{detail.user_type || '-'}</Descriptions.Item>
           </Descriptions>
         )}
       </Drawer>

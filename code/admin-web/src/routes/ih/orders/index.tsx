@@ -27,6 +27,13 @@ export default function OrderAdmin() {
     { title: '用户ID', dataIndex: 'user_id', width: 90 },
     { title: '类型', dataIndex: 'type', width: 100 },
     {
+      title: '关联处方',
+      dataIndex: 'prescription_id',
+      width: 120,
+      search: false,
+      render: (_, r) => (r.prescription_id ? `Rx#${r.prescription_id}` : '-'),
+    },
+    {
       title: '金额',
       dataIndex: 'amount',
       width: 100,

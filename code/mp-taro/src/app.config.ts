@@ -16,6 +16,13 @@ export default defineAppConfig({
     'pages/pharmacist-review/index',
     'pages/patient-consult-list/index',
     'pages/patient-chat/index',
+    'pages/mt/customers/index',
+    'pages/mt/customers/detail',
+    'pages/mt/pain/index',
+    'pages/mt/plans/index',
+    'pages/mt/records/index',
+    'pages/mt/repurchase/index',
+    'pages/mt/risk/index',
   ],
   tabBar: {
     color: '#8c8c8c',

@@ -16,6 +16,34 @@ const RX_COLOR: Record<string, string> = {
   pending_audit: 'gold',
 }
 
+// 后端 rx_check_json 真实结构：{ conflicts, contraindications, dosage_warnings }
+// 任一数组非空即存在合理用药告警（合规强规则，必须如实展示）。
+function RxCheckAlert({ rx }: { rx?: Record<string, unknown> | null }) {
+  if (!rx) {
+    return <Alert style={{ marginTop: 16 }} type="info" showIcon message="暂未执行合理用药校验" />
+  }
+  const conflicts = (rx.conflicts as unknown[]) || []
+  const contraindications = (rx.contraindications as unknown[]) || []
+  const dosage = (rx.dosage_warnings as unknown[]) || []
+  const hit = conflicts.length + contraindications.length + dosage.length > 0
+  if (!hit) {
+    return <Alert style={{ marginTop: 16 }} type="success" showIcon message="合理用药校验通过" />
+  }
+  return (
+    <Alert
+      style={{ marginTop: 16 }}
+      type="warning"
+      showIcon
+      message={`合理用药校验告警（相互作用${conflicts.length}/禁忌${contraindications.length}/剂量${dosage.length}）`}
+      description={
+        <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+          {JSON.stringify(rx, null, 2)}
+        </pre>
+      }
+    />
+  )
+}
+
 export default function RxReview() {
   const actionRef = useRef<ActionType>()
   const { message } = App.useApp()
@@ -28,15 +56,24 @@ export default function RxReview() {
     setOpen(true)
   }
 
-  const doAudit = async (action: 'approve' | 'reject', note?: string) => {
+  const [note, setNote] = useState('')
+
+  const doAudit = async (action: 'approve' | 'reject') => {
     if (!detail) return
+    if (action === 'reject' && !note.trim()) {
+      message.warning('驳回时必须填写审核意见')
+      return
+    }
     try {
-      await auditPrescription(detail.id, { action, reviewer_id: currentUid, note })
+      await auditPrescription(detail.id, { action, reviewer_id: currentUid, note: note || undefined })
       message.success(action === 'approve' ? '已通过' : '已驳回')
       setOpen(false)
       setDetail(null)
+      setNote('')
       actionRef.current?.reload()
-    } catch {}
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '审核失败')
+    }
   }
 
   const columns: ProColumns<Prescription>[] = [
@@ -90,7 +127,7 @@ export default function RxReview() {
         submitter={{
           render: () => [
             <Space key="op">
-              <Button danger onClick={() => doAudit('reject', '不合规')}>
+              <Button danger onClick={() => doAudit('reject')}>
                 驳回
               </Button>
               <Button type="primary" onClick={() => doAudit('approve')}>
@@ -111,22 +148,23 @@ export default function RxReview() {
                 <Tag color={RX_COLOR[detail.status] || 'default'}>{detail.status}</Tag>
               </Descriptions.Item>
             </Descriptions>
-            {detail.rx_check_json?.hit ? (
-              <Alert
-                style={{ marginTop: 16 }}
-                type="warning"
-                showIcon
-                message="合理用药校验告警"
-                description={
-                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
-                    {JSON.stringify(detail.rx_check_json, null, 2)}
-                  </pre>
-                }
-              />
-            ) : (
-              <Alert style={{ marginTop: 16 }} type="success" showIcon message="合理用药校验通过" />
+            {Array.isArray(detail.items_json) && detail.items_json.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>处方明细</div>
+                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', background: '#fafafa', padding: 12, borderRadius: 8 }}>
+                  {JSON.stringify(detail.items_json, null, 2)}
+                </pre>
+              </div>
             )}
-            <ProFormTextArea name="note" label="审核意见" placeholder="驳回时必填" style={{ marginTop: 16 }} />
+            <RxCheckAlert rx={detail.rx_check_json} />
+            <ProFormTextArea
+              name="note"
+              label="审核意见"
+              placeholder="驳回时必填"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              style={{ marginTop: 16 }}
+            />
           </>
         )}
       </DrawerForm>

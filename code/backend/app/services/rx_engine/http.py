@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import httpx
 from datetime import datetime, timezone
 from typing import Any
 
@@ -15,30 +16,33 @@ from app.services.rx_engine.base import RxEngine, RxResult
 
 
 class HttpRxEngine(RxEngine):
+    """对接真实合理用药供应商（HTTP）。
+
+    契约：POST {base_url}/v1/rx-check，请求体为处方 dict（与 MockRxEngine 同构输入），
+    响应为 RxResult 同构 JSON：{conflicts, contraindications, dosage_warnings}。
+    生产环境只需将 settings.rx_engine_base_url 指向真实供应商即可，调用方已对异常降级。
+    """
+
     provider = "http"
 
     def __init__(self, base_url: str, timeout: float = 3.0) -> None:
-        self.base_url = base_url
+        self.base_url = (base_url or "").rstrip("/")
         self.timeout = timeout
 
     def check(self, prescription: dict) -> RxResult:
-        # TODO(P3-外部对接): 调用供应商 /v1/rx-check 接口，将响应映射为 RxResult。
-        # 示例：
-        #   import httpx
-        #   resp = httpx.post(f"{self.base_url}/v1/rx-check",
-        #                     json=prescription, timeout=self.timeout)
-        #   resp.raise_for_status()
-        #   data = resp.json()
-        #   return RxResult(provider=self.provider, **data)
-        raise NotImplementedError(
-            "HttpRxEngine 尚未接入真实供应商，请在配置 RX_ENGINE_BASE_URL 后实现映射逻辑"
+        if not self.base_url:
+            raise ValueError("HttpRxEngine 未配置 rx_engine_base_url")
+        resp = httpx.post(
+            f"{self.base_url}/v1/rx-check",
+            json=prescription,
+            timeout=self.timeout,
         )
-
-    def _empty(self) -> RxResult:
+        resp.raise_for_status()
+        data = resp.json() or {}
         return RxResult(
             provider=self.provider,
-            conflicts=[],
-            contraindications=[],
-            dosage_warnings=[],
+            conflicts=[dict(c) for c in (data.get("conflicts") or [])],
+            contraindications=[dict(c) for c in (data.get("contraindications") or [])],
+            dosage_warnings=[dict(d) for d in (data.get("dosage_warnings") or [])],
             checked_at=datetime.now(timezone.utc).isoformat(),
         )
