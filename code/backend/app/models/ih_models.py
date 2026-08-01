@@ -28,6 +28,21 @@ class IhDoctor(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(16), default="pending")
 
 
+class IhPharmacist(Base, TimestampMixin):
+    """药师档案（互联网医院审方主体，技术架构第11.2章）。
+
+    与 IhDoctor 同构：药师身份持久化，使 role=pharmacist 的 JWT 能关联到真实档案，
+    符合等保三级"身份可追溯、审方责任到人"要求。
+    """
+
+    __tablename__ = "ih_pharmacist"
+    user_id: Mapped[int] = mapped_column(ForeignKey("ih_user.id"), index=True)
+    license_no: Mapped[str] = mapped_column(String(64), unique=True)  # 执业药师证书编号
+    title: Mapped[str | None] = mapped_column(String(32))
+    pharmacy_id: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active/pending/disabled
+
+
 class IhPrescription(Base, TimestampMixin):
     __tablename__ = "ih_prescription"
     prescription_no: Mapped[str] = mapped_column(String(64), unique=True, index=True)

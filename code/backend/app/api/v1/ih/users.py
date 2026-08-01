@@ -12,11 +12,14 @@ from app.core.response import success
 from app.core.cache import cached, build_key, cache_delete
 from app.core.security import create_access_token
 from app.core.deps import get_db
-from app.models.ih_models import IhUser
+from app.models.ih_models import IhUser, IhDoctor, IhPharmacist
 from app.schemas.ih import TokenOut, UserCreate, UserLoginWxIn, UserOut
 from app.services.audit import write_audit
 
 router = APIRouter(prefix="/users", tags=["ih-用户"])
+
+# 登录身份 → JWT 角色（迭代 A · S1 双身份）
+WX_LOGIN_ROLES = {"patient", "doctor", "pharmacist"}
 
 
 async def _wx_code2session(code: str) -> str:
@@ -36,6 +39,48 @@ async def _wx_code2session(code: str) -> str:
         if "openid" not in data:
             raise BusinessError(ErrorCode.SYSTEM_ERROR, "微信登录失败")
         return data["openid"]
+
+
+async def _resolve_subject(
+    body: UserLoginWxIn, user: IhUser, db: AsyncSession
+) -> tuple[int, str]:
+    """按登录身份解析 JWT subject 与角色（迭代 A · S1 双身份）。
+
+    - patient：subject=user.id，role=patient
+    - doctor：subject=IhDoctor.id（缺省按 user 关联首个档案），role=doctor
+    - pharmacist：subject=IhPharmacist.id（缺省按 user 关联首个档案），role=pharmacist
+    返回 (subject_id, role)。
+    """
+    role = body.role if body.role in WX_LOGIN_ROLES else "patient"
+    if role == "patient":
+        return user.id, "patient"
+    if role == "doctor":
+        doc = None
+        if body.doctor_id:
+            doc = await db.get(IhDoctor, body.doctor_id)
+        if doc is None:
+            doc = (
+                await db.scalar(select(IhDoctor).where(IhDoctor.user_id == user.id))
+            )
+        if doc is None:
+            # 开发态：未预置医师档案时，按 user 关联创建一个（status=pending）
+            doc = IhDoctor(user_id=user.id, license_no=f"DEV-DOC-{user.id}")
+            db.add(doc)
+            await db.flush()
+        return doc.id, "doctor"
+    # pharmacist
+    pha = None
+    if body.pharmacist_id:
+        pha = await db.get(IhPharmacist, body.pharmacist_id)
+    if pha is None:
+        pha = (
+            await db.scalar(select(IhPharmacist).where(IhPharmacist.user_id == user.id))
+        )
+    if pha is None:
+        pha = IhPharmacist(user_id=user.id, license_no=f"DEV-PHA-{user.id}")
+        db.add(pha)
+        await db.flush()
+    return pha.id, "pharmacist"
 
 
 @router.post("/login/wx", response_model=None)
@@ -63,8 +108,11 @@ async def login_wx(
             after={"openid": openid},
             ip=request.client.host if request.client else None,
         )
-    token = create_access_token(subject=str(user.id), role="patient")
-    return success(data=TokenOut(access_token=token, user=UserOut.model_validate(user)))
+    subject_id, role = await _resolve_subject(body, user, db)
+    token = create_access_token(subject=str(subject_id), role=role)
+    user_out = UserOut.model_validate(user)
+    user_out.role = role
+    return success(data=TokenOut(access_token=token, user=user_out))
 
 
 @router.post("", response_model=None)

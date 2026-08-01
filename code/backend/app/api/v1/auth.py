@@ -26,7 +26,8 @@ from app.models.plat_models import PlatAccount
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-MT_ROLES = {"store", "therapist", "platform", "xingyao"}
+# dev-token 允许签发的全部角色（七角色全集：patient/doctor/pharmacist/store/therapist/platform/xingyao）
+MT_ROLES = {"store", "therapist", "platform", "xingyao", "doctor", "pharmacist"}
 
 
 class DevTokenIn(BaseModel):

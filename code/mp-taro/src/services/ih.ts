@@ -5,7 +5,7 @@ import { API } from '@/constants/api'
 export interface TokenData {
   access_token: string
   token_type: string
-  user: { id: number; openid: string; phone_mask?: string; real_name_mask?: string }
+  user: { id: number; openid: string; role: string; phone_mask?: string; real_name_mask?: string }
 }
 
 export interface PageResult<T> {
@@ -41,6 +41,7 @@ export interface Prescription {
   prescription_no: string
   patient_id: number
   doctor_id: number
+  pharmacist_id?: number
   diagnose?: string
   status: string
   items_json?: unknown
@@ -60,7 +61,10 @@ export interface Order {
   created_at?: string
 }
 
-export async function loginWx(code: string, extra?: { phone_mask?: string; real_name_mask?: string }) {
+export async function loginWx(
+  code: string,
+  extra?: { phone_mask?: string; real_name_mask?: string; role?: string },
+) {
   return request<TokenData>(API.loginWx, {
     method: 'POST',
     data: { code, ...extra },
@@ -113,6 +117,17 @@ export async function listPrescriptions(params: { page?: number; page_size?: num
 
 export async function getPrescription(id: number) {
   return request<Prescription>(`${API.prescriptions}/${id}`)
+}
+
+// 药师审核（第11.2章 药师审方，迭代 A · S2）：reviewer 由后端取当前 JWT 主体，前端仅传 action/note
+export async function auditPrescription(
+  rxId: number,
+  body: { action: 'approve' | 'reject'; note?: string },
+) {
+  return request<Prescription>(`${API.prescriptions}/${rxId}/audit`, {
+    method: 'PATCH',
+    data: body,
+  })
 }
 
 // ---------------- 订单与支付（第14.2章 微信 JSAPI + 幂等） ----------------

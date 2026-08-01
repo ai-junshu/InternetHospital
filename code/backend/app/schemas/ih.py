@@ -10,6 +10,9 @@ from app.schemas.common import BaseOut
 # ---------------- 用户 ----------------
 class UserLoginWxIn(BaseModel):
     code: str  # 微信 wx.login code；未配置 appid 时作为开发模式标识
+    role: str = "patient"  # 登录身份：patient / doctor / pharmacist（迭代 A · S1 双身份）
+    doctor_id: Optional[int] = None  # 医师身份联调时可直接传入档案 id
+    pharmacist_id: Optional[int] = None  # 药师身份联调时可直接传入档案 id
     phone_mask: Optional[str] = None
     real_name_mask: Optional[str] = None
 
@@ -28,6 +31,7 @@ class UserOut(BaseOut):
     phone_mask: Optional[str] = None
     id_card_mask: Optional[str] = None
     user_type: Optional[str] = None
+    role: str = "patient"  # 透传前端路由用
 
 
 class TokenOut(BaseModel):
@@ -91,7 +95,7 @@ class PrescriptionCreate(BaseModel):
 
 class PrescriptionAuditIn(BaseModel):
     action: str  # approve | reject
-    reviewer_id: int
+    reviewer_id: Optional[int] = None  # 保留兼容，后端以 JWT 主体为准（等保三级审计链）
     note: Optional[str] = None
 
 

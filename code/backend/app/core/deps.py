@@ -1,6 +1,6 @@
-"""依赖注入（技术架构第10.2章：JWT + RBAC 六角色）。
+"""依赖注入（技术架构第10.2章：JWT + RBAC 七角色）。
 
-六角色：patient / doctor / store / therapist / platform / xingyao
+七角色：patient / doctor / pharmacist / store / therapist / platform / xingyao
 """
 from typing import Any
 
@@ -12,8 +12,8 @@ from app.core.security import decode_access_token
 from app.db.session import get_session
 from app.models.mt_models import MtCustomer
 
-# 六角色（第10.2章 RBAC）
-ROLES = {"patient", "doctor", "store", "therapist", "platform", "xingyao"}
+# 七角色（第10.2章 RBAC）
+ROLES = {"patient", "doctor", "pharmacist", "store", "therapist", "platform", "xingyao"}
 
 # JWT 载荷中的门店声明键（RLS 行级隔离，第15.2章）
 STORE_CLAIM = "store_id"

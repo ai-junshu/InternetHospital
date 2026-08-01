@@ -131,7 +131,7 @@ async def get_prescription(rx_id: int, _auth: dict = Depends(current_user), db: 
 
 @router.patch("/{rx_id}/audit", response_model=None)
 async def audit_prescription(
-    rx_id: int, body: PrescriptionAuditIn, request: Request, _user: dict = Depends(require_role("doctor", "platform")), db: AsyncSession = Depends(get_db)
+    rx_id: int, body: PrescriptionAuditIn, request: Request, _user: dict = Depends(require_role("pharmacist", "platform")), db: AsyncSession = Depends(get_db)
 ):
     rx = await db.get(IhPrescription, rx_id)
     if not rx or rx.is_deleted:
@@ -140,8 +140,12 @@ async def audit_prescription(
         raise BusinessError(ErrorCode.PRESCRIPTION_PENDING, "仅待审核处方可审核")
     if body.action not in ("approve", "reject"):
         raise BusinessError(ErrorCode.PARAM_INVALID, "action 仅支持 approve/reject")
+    # 药师审方责任到人：reviewer 强制取当前 JWT 主体，杜绝前端伪造审核人（等保三级审计链）
+    reviewer_id = actor_of(_user)
+    if reviewer_id is None:
+        raise BusinessError(ErrorCode.FORBIDDEN, "无法解析审核人身份")
     rx.status = "approved" if body.action == "approve" else "rejected"
-    rx.pharmacist_id = body.reviewer_id
+    rx.pharmacist_id = reviewer_id
     rx.audit_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(rx)

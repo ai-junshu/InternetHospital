@@ -14,6 +14,7 @@ from app.db.session import SessionLocal
 from app.core.security import gen_totp_secret, hash_password, totp_provisioning_uri
 from app.models.mt_models import MtStore, MtTherapist
 from app.models.plat_models import PlatAiModel, PlatDataAsset, PlatAccount
+from app.models.ih_models import IhUser, IhPharmacist
 
 # 演示账号（⚠️ 仅本地 dev，生产须经密钥管理下发并强制改密）
 SEED_PASSWORD = "Ihm@2026!dev"
@@ -110,6 +111,12 @@ DATA_ASSETS = [
     },
 ]
 
+# 药师（迭代 A · S2 药师审核工作台）：先建 ih_user，再关联 ih_pharmacist
+PHARMACISTS = [
+    {"openid": "dev_pharmacist_zhao", "license_no": "PH-DEV-0001", "title": "主任药师"},
+    {"openid": "dev_pharmacist_qian", "license_no": "PH-DEV-0002", "title": "执业药师"},
+]
+
 
 async def _upsert_store(db, data: dict) -> int:
     existing = (
@@ -156,6 +163,26 @@ async def _upsert_data_asset(db, data: dict) -> None:
     db.add(PlatDataAsset(**data))
 
 
+async def _upsert_pharmacist(db, data: dict) -> None:
+    existing = (
+        await db.scalar(
+            select(IhPharmacist).where(
+                IhPharmacist.license_no == data["license_no"], IhPharmacist.is_deleted.is_(False)
+            )
+        )
+    )
+    if existing:
+        return
+    user = (
+        await db.scalar(select(IhUser).where(IhUser.openid == data["openid"], IhUser.is_deleted.is_(False)))
+    )
+    if user is None:
+        user = IhUser(openid=data["openid"])
+        db.add(user)
+        await db.flush()
+    db.add(IhPharmacist(user_id=user.id, license_no=data["license_no"], title=data.get("title")))
+
+
 async def _upsert_account(db, data: dict) -> bool:
     existing = (
         await db.scalar(
@@ -186,7 +213,7 @@ async def _upsert_account(db, data: dict) -> bool:
 
 
 async def seed_all() -> dict:
-    summary = {"stores": 0, "therapists": 0, "ai_models": 0, "data_assets": 0, "accounts": 0}
+    summary = {"stores": 0, "therapists": 0, "ai_models": 0, "data_assets": 0, "accounts": 0, "pharmacists": 0}
     async with SessionLocal() as db:
         store_ids: dict[str, int] = {}
         for s in STORES:
@@ -203,6 +230,9 @@ async def seed_all() -> dict:
         for a in DATA_ASSETS:
             await _upsert_data_asset(db, a)
             summary["data_assets"] += 1
+        for p in PHARMACISTS:
+            await _upsert_pharmacist(db, p)
+            summary["pharmacists"] += 1
         first_store_id = next(iter(store_ids.values()), None)
         for acc in ACCOUNTS:
             acc_copy = dict(acc)
@@ -220,7 +250,8 @@ def main() -> None:
     count = asyncio.run(seed_all())
     print(
         f"[seed] done: stores={count['stores']} therapists={count['therapists']} "
-        f"ai_models={count['ai_models']} data_assets={count['data_assets']} accounts={count['accounts']}"
+        f"ai_models={count['ai_models']} data_assets={count['data_assets']} "
+        f"accounts={count['accounts']} pharmacists={count['pharmacists']}"
     )
     print(f"[seed] 后台演示账号密码（本地 dev）：{SEED_PASSWORD}")
 

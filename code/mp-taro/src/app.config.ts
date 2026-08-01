@@ -13,6 +13,7 @@ export default defineAppConfig({
     'pages/drug-catalog/index',
     'pages/doctor-rx-create/index',
     'pages/prescription-detail/index',
+    'pages/pharmacist-review/index',
   ],
   window: {
     navigationBarTitleText: '互联网医疗中心平台',
