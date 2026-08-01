@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from app.api.v1.mt import (
     care_plans,
     customers,
+    effect_tracking,
     pain_assessment,
     repurchase_predictions,
     risk_profiles,
@@ -18,6 +19,7 @@ router.include_router(customers.router)
 router.include_router(pain_assessment.router)
 router.include_router(care_plans.router)
 router.include_router(treatment_records.router)
+router.include_router(effect_tracking.router)
 router.include_router(repurchase_predictions.router)
 router.include_router(risk_profiles.router)
 router.include_router(stores.router)

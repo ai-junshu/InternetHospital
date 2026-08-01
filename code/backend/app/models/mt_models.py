@@ -39,7 +39,7 @@ class MtPainAssessment(Base, TimestampMixin):
 class MtCarePlan(Base, TimestampMixin):
     __tablename__ = "mt_care_plan"
     customer_id: Mapped[int] = mapped_column(ForeignKey("mt_customer.id"), index=True)
-    doctor_advice_id: Mapped[int | None] = mapped_column(Integer)
+    doctor_advice_id: Mapped[int] = mapped_column(Integer, index=True)  # 强制关联医师建议ID
     pain_type: Mapped[str | None] = mapped_column(String(64))
     goal: Mapped[str | None] = mapped_column(String(255))
     cycle: Mapped[str | None] = mapped_column(String(64))
@@ -62,6 +62,23 @@ class MtTreatmentRecord(Base, TimestampMixin):
     images_json: Mapped[dict | None] = mapped_column(JSON)
     remark: Mapped[str | None] = mapped_column(String(512))
     # 不可删仅可更正留痕（第11.2章）
+
+
+class MtTreatmentRecordRevision(Base, TimestampMixin):
+    """治疗记录更正留痕表（合规强规则2：不可删，仅可更正并留痕）。
+
+    每次 PATCH 更正追加一条修订记录，记录修订前后的字段快照与修订人。
+    """
+
+    __tablename__ = "mt_treatment_record_revision"
+    record_id: Mapped[int] = mapped_column(
+        ForeignKey("mt_treatment_record.id"), index=True
+    )
+    revised_by: Mapped[int | None] = mapped_column(Integer)
+    revised_by_role: Mapped[str | None] = mapped_column(String(16))
+    before_json: Mapped[dict | None] = mapped_column(JSON)
+    after_json: Mapped[dict | None] = mapped_column(JSON)
+    reason: Mapped[str | None] = mapped_column(String(255))
 
 
 class MtEffectTracking(Base, TimestampMixin):

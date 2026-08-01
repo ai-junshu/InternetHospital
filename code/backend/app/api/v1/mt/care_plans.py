@@ -29,9 +29,11 @@ async def create_care_plan(
         items_json = dict(items_json or {})
         items_json["rationale"] = rec["rationale"]
     product_combo_json = rec.get("product_combo_json") if rec else None
+    # 合规强规则1：方案必须关联执业医师出具的方案建议/处方 ID，
+    # 禁止以创建人(调理师自身)冒充医师建议（原 doctor_advice_id=created_by 为语义错位）。
     plan = MtCarePlan(
         customer_id=body.customer_id,
-        doctor_advice_id=body.created_by,
+        doctor_advice_id=body.doctor_advice_id,
         pain_type=body.pain_type,
         goal=body.goal,
         cycle=body.cycle,

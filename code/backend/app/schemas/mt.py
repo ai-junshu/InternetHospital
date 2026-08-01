@@ -61,6 +61,7 @@ class CarePlanCreate(BaseModel):
     customer_id: int
     source_store_id: Optional[int] = None
     created_by: Optional[int] = None
+    doctor_advice_id: int  # 强制关联执业医师出具的方案建议/处方 ID（合规强规则1）
     pain_type: Optional[str] = None
     goal: Optional[str] = None
     cycle: Optional[str] = None
@@ -106,6 +107,25 @@ class TreatmentRecordOut(BaseOut):
     nps: Optional[int] = None
     images_json: Optional[dict] = None
     remark: Optional[str] = None
+
+
+class TreatmentRecordReviseIn(BaseModel):
+    """治疗记录更正（合规强规则2：不可删，仅可更正留痕）。"""
+    products_json: Optional[dict] = None
+    oper_sites_json: Optional[dict] = None
+    nps: Optional[int] = None
+    images_json: Optional[dict] = None
+    remark: Optional[str] = None
+    reason: Optional[str] = None  # 更正事由，留痕必填建议
+
+
+class TreatmentRecordRevisionOut(BaseOut):
+    record_id: int
+    revised_by: Optional[int] = None
+    revised_by_role: Optional[str] = None
+    before_json: Any = None
+    after_json: Any = None
+    reason: Optional[str] = None
 
 
 # ---------------- 门店 / 调理师 ----------------
@@ -231,3 +251,21 @@ class TherapistTagRelOut(BaseModel):
     category: Optional[str] = None
     assigned_by: Optional[int] = None
     created_at: Optional[datetime] = None
+
+
+# ---------------- 效果四档判定（合规强规则3，第11.2章） ----------------
+class EffectTrackingCreate(BaseModel):
+    customer_id: int
+    plan_id: Optional[int] = None
+    baseline_pain: Optional[float] = None  # 基线疼痛评分（方案开始时）
+    latest_pain: Optional[float] = None    # 最近一次疼痛评分
+    nps: Optional[int] = None
+    repurchase_count: Optional[int] = None
+
+
+class EffectTrackingOut(BaseOut):
+    customer_id: int
+    plan_id: Optional[int] = None
+    effect_level: Optional[str] = None  # significant/effective/ineffective/worsened
+    assess_seq_json: Any = None
+    generated_at: Optional[datetime] = None
