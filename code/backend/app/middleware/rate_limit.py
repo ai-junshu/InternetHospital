@@ -11,6 +11,7 @@
   - 白名单路径（/health、/docs 等）直接放行。
   - 复用 audit.py 的 JWT 解析范式做 per-user 识别。
 """
+from ipaddress import ip_address, ip_network
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -31,12 +32,35 @@ return cur
 """
 
 
+def _is_trusted_proxy(client_ip: str) -> bool:
+    """直连客户端 IP 是否为受信反代（命中 trusted_proxy_cidrs 配置）。"""
+    cidrs = settings.trusted_proxy_cidr_list
+    if not cidrs or client_ip in ("unknown", "127.0.0.1", "::1"):
+        return False
+    try:
+        addr = ip_address(client_ip)
+    except ValueError:
+        return False
+    return any(_in_cidr(addr, c) for c in cidrs)
+
+
+def _in_cidr(addr, cidr_str: str) -> bool:
+    try:
+        return addr in ip_network(cidr_str, strict=False)
+    except ValueError:
+        return False
+
+
 def _client_ip(request: Request) -> str:
-    # 优先取 X-Forwarded-For 首段（经反代时），否则取直连 IP。
-    fwd = request.headers.get("X-Forwarded-For")
-    if fwd:
-        return fwd.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    # 直连 IP（反代转发时为其地址，而非终端用户）。
+    direct = request.client.host if request.client else "unknown"
+    # 仅当直连 IP 为受信反代时，才信任 X-Forwarded-For 首段作为真实客户端 IP；
+    # 否则一律使用直连 IP，杜绝攻击者伪造 XFF 绕过 per_ip 限流（P4 已知风险闭环）。
+    if _is_trusted_proxy(direct):
+        fwd = request.headers.get("X-Forwarded-For")
+        if fwd:
+            return fwd.split(",")[0].strip()
+    return direct
 
 
 def _jwt_sub(request: Request) -> str | None:

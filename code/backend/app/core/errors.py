@@ -54,6 +54,26 @@ def _req_id(req: Request) -> str:
     return getattr(req.state, "request_id", "")
 
 
+def _safe_jsonable(obj: Any, _depth: int = 0) -> Any:
+    """将任意对象转为可 JSON 序列化结构。
+
+    用于异常处理器喂给 ApiResponse 的 data 字段。FastAPI 的
+    RequestValidationError.errors() 可能包含 bytes（如上传文件 input），
+    直接 model_dump() 会抛 TypeError 触发 5000 假异常；这里递归收敛。
+    """
+    if _depth > 8:
+        return str(obj)
+    if obj is None or isinstance(obj, (str, int, float, bool)):
+        return obj
+    if isinstance(obj, bytes):
+        return obj.decode("utf-8", "replace")
+    if isinstance(obj, dict):
+        return {str(k): _safe_jsonable(v, _depth + 1) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [_safe_jsonable(v, _depth + 1) for v in obj]
+    return str(obj)
+
+
 def register_exception_handlers(app) -> None:
     from app.core.response import error
 
@@ -61,19 +81,21 @@ def register_exception_handlers(app) -> None:
     async def _biz(req: Request, exc: BusinessError):
         return JSONResponse(
             status_code=200,
-            content=error(exc.code, exc.message, exc.data, _req_id(req)).model_dump(),
+            content=error(exc.code, exc.message, _safe_jsonable(exc.data), _req_id(req)).model_dump(),
         )
 
     @app.exception_handler(RequestValidationError)
     async def _val(req: Request, exc: RequestValidationError):
         return JSONResponse(
             status_code=200,
-            content=error(ErrorCode.PARAM_INVALID, "参数校验失败", exc.errors(), _req_id(req)).model_dump(),
+            content=error(ErrorCode.PARAM_INVALID, "参数校验失败", _safe_jsonable(exc.errors()), _req_id(req)).model_dump(),
         )
 
     @app.exception_handler(Exception)
     async def _sys(req: Request, exc: Exception):
+        # 兜底：即便 exc 不可序列化也收敛为字符串，杜绝 5000 假异常死循环。
+        detail = _safe_jsonable({"type": type(exc).__name__, "msg": str(exc)})
         return JSONResponse(
             status_code=200,
-            content=error(ErrorCode.SYSTEM_ERROR, "系统异常", None, _req_id(req)).model_dump(),
+            content=error(ErrorCode.SYSTEM_ERROR, "系统异常", detail, _req_id(req)).model_dump(),
         )

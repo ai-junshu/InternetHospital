@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     rate_limit_per_user_per_min: int = 300
     # 限流白名单路径（逗号分隔，精确前缀匹配），默认放行探活/文档。
     rate_limit_whitelist_paths: str = "/health,/docs,/redoc,/openapi.json"
+    # 受信反代 CIDR 列表（逗号分隔）。仅当直连客户端 IP 命中其中某段时，
+    # 才信任 X-Forwarded-For 首段作为真实客户端 IP；否则一律使用直连 IP。
+    # 默认空：直连场景下不信任任何 XFF，杜绝攻击者伪造 XFF 绕过 per_ip 限流。
+    # 生产部署在 Nginx/ALB 后时，需注入反代网段（如 "10.0.0.0/8,172.16.0.0/12"）。
+    trusted_proxy_cidrs: str = ""
 
     # 微信小程序登录（第14章）
     wx_appid: str = ""
@@ -109,6 +114,10 @@ class Settings(BaseSettings):
     @property
     def rate_limit_whitelist_list(self) -> list[str]:
         return [p.strip() for p in self.rate_limit_whitelist_paths.split(",") if p.strip()]
+
+    @property
+    def trusted_proxy_cidr_list(self) -> list[str]:
+        return [c.strip() for c in self.trusted_proxy_cidrs.split(",") if c.strip()]
 
 
 @lru_cache

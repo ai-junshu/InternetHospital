@@ -6,11 +6,23 @@ import {
   ProFormText,
   ProFormSelect,
   ProFormDigit,
+  ProDescriptions,
   type ActionType,
   type ProColumns,
 } from '@ant-design/pro-components'
-import { Button, Tag, App, Popconfirm } from 'antd'
-import { listDrugs, createDrug, updateDrug, deleteDrug, type IhDrug } from '@/services/ih'
+import { Button, Tag, App, Popconfirm, Modal, InputNumber, Input, Space, Table, message as antdMessage } from 'antd'
+import {
+  listDrugs,
+  createDrug,
+  updateDrug,
+  deleteDrug,
+  listPharmacies,
+  listDrugStocks,
+  adjustDrugStock,
+  type IhDrug,
+  type Pharmacy,
+  type DrugStock,
+} from '@/services/ih'
 
 const OTC_ENUM = {
   rx: { text: '处方药', status: 'Error' },
@@ -29,6 +41,14 @@ export default function DrugCatalogAdmin() {
   const [editOpen, setEditOpen] = useState(false)
   const [editRecord, setEditRecord] = useState<IhDrug | null>(null)
 
+  // 库存管理弹窗
+  const [stockOpen, setStockOpen] = useState(false)
+  const [stockDrug, setStockDrug] = useState<IhDrug | null>(null)
+  const [pharmacies, setPharmacies] = useState<Pharmacy[]>([])
+  const [stockRows, setStockRows] = useState<DrugStock[]>([])
+  const [stockLoading, setStockLoading] = useState(false)
+  const [adjustingId, setAdjustingId] = useState<number | null>(null)
+
   const openCreate = () => {
     setEditRecord(null)
     setEditOpen(true)
@@ -36,6 +56,41 @@ export default function DrugCatalogAdmin() {
   const openEdit = (r: IhDrug) => {
     setEditRecord(r)
     setEditOpen(true)
+  }
+
+  const openStock = async (r: IhDrug) => {
+    setStockDrug(r)
+    setStockOpen(true)
+    setStockLoading(true)
+    try {
+      const [ph, st] = await Promise.all([
+        listPharmacies({ page: 1, page_size: 200 }),
+        listDrugStocks({ drug_id: r.id, page: 1, page_size: 200 }),
+      ])
+      setPharmacies(ph.items || [])
+      setStockRows(st.items || [])
+    } finally {
+      setStockLoading(false)
+    }
+  }
+
+  // delta 增减调整：delta>0 入库，<0 出库；reason 记录事由。
+  const doAdjust = async (row: DrugStock, delta: number, reason: string) => {
+    if (delta === 0) {
+      antdMessage.warning('请输入非零调整数量')
+      return
+    }
+    setAdjustingId(row.id)
+    try {
+      await adjustDrugStock(row.id, { delta_stock: delta, reason: reason || undefined })
+      antdMessage.success(`已${delta > 0 ? '入库' : '出库'} ${Math.abs(delta)}`)
+      const st = await listDrugStocks({ drug_id: stockDrug!.id, page: 1, page_size: 200 })
+      setStockRows(st.items || [])
+    } catch {
+      antdMessage.error('调整失败')
+    } finally {
+      setAdjustingId(null)
+    }
   }
 
   const columns: ProColumns<IhDrug>[] = [
@@ -77,11 +132,25 @@ export default function DrugCatalogAdmin() {
       ),
     },
     {
+      title: '库存',
+      dataIndex: 'id',
+      width: 100,
+      search: false,
+      render: (_, r) => (
+        <a key="stock" onClick={() => openStock(r)}>
+          管理
+        </a>
+      ),
+    },
+    {
       title: '操作',
       valueType: 'option',
       render: (_, r) =>
         canEdit
           ? [
+              <a key="stock" onClick={() => openStock(r)}>
+                库存
+              </a>,
               <a key="edit" onClick={() => openEdit(r)}>
                 编辑
               </a>,
@@ -201,6 +270,101 @@ export default function DrugCatalogAdmin() {
           ]}
         />
       </ModalForm>
+
+      <Modal
+        title={`库存管理 · ${stockDrug?.name || ''}`}
+        open={stockOpen}
+        onCancel={() => setStockOpen(false)}
+        footer={null}
+        width={720}
+      >
+        <Table<DrugStock>
+          loading={stockLoading}
+          rowKey="id"
+          dataSource={stockRows}
+          pagination={false}
+          size="small"
+          columns={[
+            {
+              title: '药房',
+              dataIndex: 'pharmacy_id',
+              render: (pid: number) =>
+                pharmacies.find((p) => p.id === pid)?.name || `药房#${pid}`,
+            },
+            { title: '当前库存', dataIndex: 'stock', width: 90 },
+            {
+              title: '安全库存',
+              dataIndex: 'safety_stock',
+              width: 90,
+              render: (v: number) => v ?? 0,
+            },
+            {
+              title: '状态',
+              key: 'warn',
+              width: 90,
+              render: (_, row) =>
+                (row.stock ?? 0) <= (row.safety_stock ?? 0) ? (
+                  <Tag color="red">低库存</Tag>
+                ) : (
+                  <Tag color="green">正常</Tag>
+                ),
+            },
+            {
+              title: '出入库调整',
+              key: 'adj',
+              render: (_, row) => <StockAdjustCell row={row} busy={adjustingId === row.id} onOk={doAdjust} />,
+            },
+          ]}
+        />
+        {stockRows.length === 0 && !stockLoading && (
+          <div style={{ padding: 16, color: '#999' }}>该药品尚未建立任何药房库存。</div>
+        )}
+      </Modal>
     </PageContainer>
+  )
+}
+
+// 单行库存调整：输入 delta（正=入库，负=出库）+ 事由，提交走 delta 增减语义。
+function StockAdjustCell({
+  row,
+  busy,
+  onOk,
+}: {
+  row: DrugStock
+  busy: boolean
+  onOk: (row: DrugStock, delta: number, reason: string) => void
+}) {
+  const [delta, setDelta] = useState<number | null>(null)
+  const [reason, setReason] = useState('')
+  return (
+    <Space>
+      <InputNumber
+        size="small"
+        placeholder="±数量"
+        value={delta}
+        onChange={setDelta}
+        style={{ width: 90 }}
+      />
+      <Input
+        size="small"
+        placeholder="事由(可选)"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        style={{ width: 120 }}
+      />
+      <Button
+        size="small"
+        type="primary"
+        loading={busy}
+        disabled={delta === null || delta === 0}
+        onClick={() => {
+          onOk(row, delta ?? 0, reason)
+          setDelta(null)
+          setReason('')
+        }}
+      >
+        提交
+      </Button>
+    </Space>
   )
 }
