@@ -59,7 +59,7 @@ export default function DoctorChat() {
     refresh()
   }
   const onEnd = async () => {
-    await endConsultation(id, doctorId)
+    await endConsultation(id)
     refresh()
   }
 

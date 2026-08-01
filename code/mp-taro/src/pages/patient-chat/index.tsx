@@ -40,7 +40,7 @@ export default function PatientChat() {
   }
 
   const onEnd = async () => {
-    await endConsultation(id, patientId)
+    await endConsultation(id)
     refresh()
   }
 

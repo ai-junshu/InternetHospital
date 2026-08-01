@@ -166,19 +166,21 @@ async def start_consultation(
 async def end_consultation(
     consultation_id: int,
     request: Request,
-    doctor_id: int | None = None,
-    patient_id: int | None = None,
-    _user: dict = Depends(current_user),
+    _auth: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
     obj = await _get_consultation(consultation_id, db)
     if obj.status != "ongoing":
         raise BusinessError(ErrorCode.PARAM_INVALID, "仅问诊中会话可结束")
-    # 归属校验：医师端传 doctor_id，患者端传 patient_id，任一匹配即可结束
-    if doctor_id is not None and obj.doctor_id != doctor_id:
+    # 归属校验：主体取自 JWT，不信任前端传入的 id（杜绝不传参绕过）。
+    # 与 get_consultation 越权逻辑保持一致：患者/医师仅能结束本人会话，platform 全量。
+    role = _auth.get("role")
+    if role == "patient" and obj.patient_id != actor_of(_auth):
         raise BusinessError(ErrorCode.FORBIDDEN, "非本人会话，无法结束")
-    if patient_id is not None and obj.patient_id != patient_id:
+    if role == "doctor" and obj.doctor_id != actor_of(_auth):
         raise BusinessError(ErrorCode.FORBIDDEN, "非本人会话，无法结束")
+    if role not in ("patient", "doctor", "platform"):
+        raise BusinessError(ErrorCode.FORBIDDEN, "无权限结束会话")
     obj.status = "ended"
     obj.ended_at = datetime.now(timezone.utc)
     await db.commit()
@@ -187,8 +189,8 @@ async def end_consultation(
         db,
         action="consultation.end",
         resource="ih_consultation",
-        role=_user.get("role"),
-        actor_id=actor_of(_user),
+        role=_auth.get("role"),
+        actor_id=actor_of(_auth),
         after={"consultation_no": obj.consultation_no, "status": "ended"},
         ip=request.client.host if request.client else None,
     )

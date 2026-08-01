@@ -244,9 +244,10 @@ export async function startConsultation(consultationId: number, doctorId: number
   )
 }
 
-export async function endConsultation(consultationId: number, doctorId: number) {
+// 结束会话：归属由后端按 JWT 角色校验，前端无需传入任何 id（避免越权绕过）
+export async function endConsultation(consultationId: number) {
   return request<Consultation>(
-    `${API.consultations}/${consultationId}/end?doctor_id=${doctorId}`,
+    `${API.consultations}/${consultationId}/end`,
     { method: 'PATCH' },
   )
 }
