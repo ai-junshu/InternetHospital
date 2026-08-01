@@ -89,10 +89,17 @@ async def list_consultations(
     db: AsyncSession = Depends(get_db),
 ):
     conds = [IhConsultation.is_deleted.is_(False)]
-    if patient_id is not None:
-        conds.append(IhConsultation.patient_id == patient_id)
-    if doctor_id is not None:
-        conds.append(IhConsultation.doctor_id == doctor_id)
+    # S3 越权修复：role=patient/doctor 时强制归属，忽略外部传入的越权 id
+    role = _auth.get("role")
+    if role == "patient":
+        conds.append(IhConsultation.patient_id == actor_of(_auth))
+    elif role == "doctor":
+        conds.append(IhConsultation.doctor_id == actor_of(_auth))
+    else:
+        if patient_id is not None:
+            conds.append(IhConsultation.patient_id == patient_id)
+        if doctor_id is not None:
+            conds.append(IhConsultation.doctor_id == doctor_id)
     if status is not None:
         conds.append(IhConsultation.status == status)
     total = (
@@ -121,6 +128,12 @@ async def list_consultations(
 @router.get("/{consultation_id}", response_model=None)
 async def get_consultation(consultation_id: int, _auth: dict = Depends(current_user), db: AsyncSession = Depends(get_db)):
     obj = await _get_consultation(consultation_id, db)
+    # S3 越权修复：按登录角色归属校验（患者仅本人、医师仅本人、platform 全量）
+    role = _auth.get("role")
+    if role == "patient" and obj.patient_id != actor_of(_auth):
+        raise BusinessError(ErrorCode.FORBIDDEN, "非本人问诊会话")
+    if role == "doctor" and obj.doctor_id != actor_of(_auth):
+        raise BusinessError(ErrorCode.FORBIDDEN, "非本人问诊会话")
     return success(data=ConsultationOut.model_validate(obj))
 
 
@@ -151,13 +164,21 @@ async def start_consultation(
 
 @router.patch("/{consultation_id}/end", response_model=None)
 async def end_consultation(
-    consultation_id: int, doctor_id: int, request: Request,
+    consultation_id: int,
+    request: Request,
+    doctor_id: int | None = None,
+    patient_id: int | None = None,
     _user: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
     obj = await _get_consultation(consultation_id, db)
     if obj.status != "ongoing":
         raise BusinessError(ErrorCode.PARAM_INVALID, "仅问诊中会话可结束")
+    # 归属校验：医师端传 doctor_id，患者端传 patient_id，任一匹配即可结束
+    if doctor_id is not None and obj.doctor_id != doctor_id:
+        raise BusinessError(ErrorCode.FORBIDDEN, "非本人会话，无法结束")
+    if patient_id is not None and obj.patient_id != patient_id:
+        raise BusinessError(ErrorCode.FORBIDDEN, "非本人会话，无法结束")
     obj.status = "ended"
     obj.ended_at = datetime.now(timezone.utc)
     await db.commit()

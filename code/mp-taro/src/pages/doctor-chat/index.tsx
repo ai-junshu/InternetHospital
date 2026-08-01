@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Input, ScrollView, Switch, Text, View } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import {
@@ -20,17 +20,32 @@ export default function DoctorChat() {
   const [msgs, setMsgs] = useState<ConsultationMessage[]>([])
   const [text, setText] = useState('')
   const [prescribing, setPrescribing] = useState(false)
+  const pollRef = useRef<number>()
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     const c = await getConsultation(id)
     setConv(c)
     const m = await listMessages(id, { page: 1, page_size: 200 })
     setMsgs(m.items)
-  }
+  }, [id])
 
   useEffect(() => {
-    if (id) refresh()
-  }, [])
+    if (!id) return
+    refresh()
+    // S6 轮询：4s 拉取患者新消息，会话结束则停止轮询
+    pollRef.current = setInterval(async () => {
+      const c = await getConsultation(id).catch(() => null)
+      if (c?.status === 'ended') {
+        if (pollRef.current) clearInterval(pollRef.current)
+        setConv(c)
+      }
+      const m = await listMessages(id, { page: 1, page_size: 200 }).catch(() => null)
+      if (m) setMsgs(m.items)
+    }, 4000) as unknown as number
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
+  }, [id, refresh])
 
   const onSend = async () => {
     if (!text.trim()) return

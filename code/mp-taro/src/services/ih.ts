@@ -217,6 +217,26 @@ export async function listDoctorConsultations(params: {
   return request<PageResult<Consultation>>(API.consultations, { data: params })
 }
 
+// S6 患者侧"我的问诊"：按当前患者过滤（后端 role=patient 时强制 patient_id 归属，越权返回 2003）
+export async function listPatientConsultations(params: {
+  patient_id: number
+  page?: number
+  page_size?: number
+  status?: string
+}) {
+  return request<PageResult<Consultation>>(API.consultations, { data: params })
+}
+
+// S7 个人中心：获取当前用户真实身份（后端返回 {user_id, role}，P4 脱敏）
+export interface MeData {
+  user_id: number
+  role: string
+}
+
+export async function getMe() {
+  return request<MeData>(API.usersMe)
+}
+
 export async function startConsultation(consultationId: number, doctorId: number) {
   return request<Consultation>(
     `${API.consultations}/${consultationId}/start?doctor_id=${doctorId}`,

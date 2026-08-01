@@ -14,7 +14,20 @@ export default defineAppConfig({
     'pages/doctor-rx-create/index',
     'pages/prescription-detail/index',
     'pages/pharmacist-review/index',
+    'pages/patient-consult-list/index',
+    'pages/patient-chat/index',
   ],
+  tabBar: {
+    color: '#8c8c8c',
+    selectedColor: '#1677FF',
+    backgroundColor: '#ffffff',
+    borderStyle: 'black',
+    list: [
+      { pagePath: 'pages/index/index', text: '首页' },
+      { pagePath: 'pages/patient-consult-list/index', text: '复诊开药' },
+      { pagePath: 'pages/profile/index', text: '我的' },
+    ],
+  },
   window: {
     navigationBarTitleText: '互联网医疗中心平台',
     navigationBarBackgroundColor: '#ffffff',

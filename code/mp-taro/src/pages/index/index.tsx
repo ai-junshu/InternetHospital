@@ -1,23 +1,39 @@
-import { useState } from 'react'
-import { Text, View, Button } from '@tarojs/components'
+import { useEffect, useState } from 'react'
+import { Text, View, Button, ScrollView } from '@tarojs/components'
 import Taro from '@tarojs/taro'
+import { getDoctors, type Doctor } from '@/services/ih'
 
 const PRIMARY = '#1677FF'
 const BG = '#F5F7FA'
 
 const SERVICES = [
-  { key: 'consult', label: '在线复诊', desc: '图文沟通 · 复诊续方', url: '/pages/doctor-consult/index', icon: '💬' },
+  { key: 'consult', label: '在线复诊', desc: '图文沟通 · 复诊续方', url: '/pages/patient-consult-list/index', icon: '💬' },
   { key: 'rx', label: '我的处方', desc: '药师审核 · 电子处方', url: '/pages/prescription/index', icon: '📋' },
   { key: 'buy', label: '去开药', desc: '处方药 · 凭方购买', url: '/pages/order/index', icon: '💊' },
   { key: 'record', label: '健康档案', desc: '问诊 · 处方记录', url: '/pages/health-record/index', icon: '🗂️' },
 ]
 
+// S7 公告/banner 本地静态占位（后端暂无公告域，预留 getAnnouncements 接口位）
+const BANNER = {
+  title: '在线复诊服务升级',
+  desc: '疼痛管理与调理专科医师已上线，支持图文复诊与电子处方配送',
+}
+
 export default function Home() {
   const token = Taro.getStorageSync('token')
   const [showConfirm, setShowConfirm] = useState(true)
+  const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getDoctors({ page: 1, page_size: 5 })
+      .then((r) => setDoctors(r.items))
+      .catch(() => setDoctors([]))
+      .finally(() => setLoading(false))
+  }, [])
 
   const go = (url: string) => {
-    if (!token && url !== '/pages/doctor-consult/index') {
+    if (!token) {
       Taro.showToast({ title: '请先登录', icon: 'none' })
       Taro.navigateTo({ url: '/pages/login/index' })
       return
@@ -79,8 +95,99 @@ export default function Home() {
         </View>
       )}
 
+      {/* 公告/banner 横条（本地静态占位） */}
+      <View
+        style={{
+          marginTop: '12px',
+          background: 'linear-gradient(135deg,#1677FF 0%,#4096FF 100%)',
+          borderRadius: '14px',
+          padding: '14px 16px',
+        }}
+      >
+        <Text style={{ display: 'block', fontSize: '15px', fontWeight: 600, color: '#fff' }}>
+          {BANNER.title}
+        </Text>
+        <Text style={{ display: 'block', fontSize: '12px', color: 'rgba(255,255,255,0.85)', marginTop: '4px' }}>
+          {BANNER.desc}
+        </Text>
+      </View>
+
+      {/* 推荐医生 */}
+      <View style={{ marginTop: '18px' }}>
+        <Text style={{ fontSize: '16px', fontWeight: 600, color: '#1F1F1F', paddingLeft: '4px' }}>
+          推荐医师
+        </Text>
+        {loading ? (
+          <View style={{ marginTop: '12px' }}>
+            {[0, 1, 2].map((i) => (
+              <View
+                key={i}
+                style={{
+                  background: '#fff',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  marginBottom: '10px',
+                  opacity: 0.6,
+                }}
+              >
+                <View style={{ width: '60%', height: '14px', background: '#eee', borderRadius: '7px' }} />
+                <View style={{ width: '40%', height: '12px', background: '#eee', borderRadius: '6px', marginTop: '10px' }} />
+              </View>
+            ))}
+          </View>
+        ) : doctors.length === 0 ? (
+          <Text style={{ display: 'block', color: '#8c8c8c', fontSize: '13px', marginTop: '10px', paddingLeft: '4px' }}>
+            暂无在线医师
+          </Text>
+        ) : (
+          <ScrollView scrollY style={{ maxHeight: '40vh', marginTop: '12px' }}>
+            {doctors.map((d) => (
+              <View
+                key={d.id}
+                onClick={() => go('/pages/patient-consult-list/index')}
+                style={{
+                  background: '#fff',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  marginBottom: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <View
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '21px',
+                    background: PRIMARY,
+                    color: '#fff',
+                    fontSize: '16px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: '12px',
+                  }}
+                >
+                  {String(d.id).slice(-2)}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ display: 'block', fontSize: '15px', fontWeight: 500 }}>
+                    医师 #{d.id}
+                  </Text>
+                  <Text style={{ display: 'block', fontSize: '12px', color: '#8C8C8C', marginTop: '2px' }}>
+                    {d.dept} · {d.title}
+                  </Text>
+                </View>
+                <Text style={{ color: '#bfbfbf', fontSize: '18px' }}>›</Text>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+
       {/* 服务入口卡片 */}
-      <View style={{ marginTop: '12px' }}>
+      <View style={{ marginTop: '18px' }}>
         {SERVICES.map((s) => (
           <View
             key={s.key}

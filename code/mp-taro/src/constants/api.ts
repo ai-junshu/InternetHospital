@@ -5,6 +5,7 @@ export const API_BASE = process.env.API_BASE || 'http://localhost:8000/api/v1'
 export const API = {
   // 互联网医院（ih）
   loginWx: '/ih/users/login/wx',
+  usersMe: '/ih/users/me',
   doctors: '/ih/doctors',
   prescriptions: '/ih/prescriptions',
   orders: '/ih/orders',
