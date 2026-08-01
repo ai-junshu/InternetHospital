@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import BusinessError, ErrorCode
 from app.core.response import success
 from app.core.deps import get_db, current_user, require_role, actor_of
-from app.models.ih_models import IhPrescription, IhPrescriptionItem
+from app.models.ih_models import IhPrescription, IhPrescriptionItem, IhDrug
 from app.schemas.common import PageResult
 from app.schemas.ih import (
     PrescriptionAuditIn,
@@ -27,19 +27,48 @@ async def create_prescription(
     body: PrescriptionCreate, request: Request, _user: dict = Depends(current_user), db: AsyncSession = Depends(get_db)
 ):
     no = gen_no("RX")
+    # S4 药品联动：按 drug_id 反查 ih_drug 标准化药品信息（name/spec/otc_type/unit/price），
+    # 避免前端手填不一致；无 drug_id 时保留前端传入值（兼容历史手填开方）。
+    drug_ids = [it.drug_id for it in body.items if it.drug_id]
+    drug_map: dict[int, "IhDrug"] = {}
+    if drug_ids:
+        rows = (
+            await db.execute(select(IhDrug).where(IhDrug.id.in_(drug_ids), IhDrug.is_deleted.is_(False)))
+        ).scalars().all()
+        drug_map = {d.id: d for d in rows}
+
+    item_dicts = []
+    item_columns = {c.name for c in IhPrescriptionItem.__table__.columns}
+    for it in body.items:
+        d = drug_map.get(it.drug_id) if it.drug_id else None
+        dct = it.model_dump()
+        if d is not None:
+            dct["name"] = d.name
+            dct["spec"] = d.spec
+            dct["otc_type"] = d.otc_type
+            dct["unit"] = d.unit
+            dct["price"] = d.price
+        item_dicts.append(dct)
+
     rx = IhPrescription(
         prescription_no=no,
         patient_id=body.patient_id,
         doctor_id=body.doctor_id,
         diagnose=body.diagnose,
-        items_json=[i.model_dump() for i in body.items],
+        items_json=item_dicts,
         signature_url=body.signature_url,
         status="pending_audit",
     )
     db.add(rx)
     await db.flush()
-    for it in body.items:
-        db.add(IhPrescriptionItem(prescription_id=rx.id, **it.model_dump()))
+    for dct in item_dicts:
+        # IhPrescriptionItem 仅接受其表列字段（drug_id/name/spec/dosage/freq/qty/daily_dose/max_daily_dose）
+        db.add(
+            IhPrescriptionItem(
+                prescription_id=rx.id,
+                **{k: v for k, v in dct.items() if k in item_columns},
+            )
+        )
 
     # 合理用药引擎前置校验（第14章第三方对接）：冲突/禁忌/剂量。
     # 真实传入患者孕期/过敏与药品单日用量，使禁忌与剂量告警可触发（风险3修复）。
@@ -92,10 +121,24 @@ async def list_prescriptions(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status: str | None = None,
+    patient_id: int | None = None,  # 仅 platform 可显式指定，普通用户忽略（防越权）
     _auth: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # S3 越权修复：按角色做数据归属隔离（等保三级「最小授权」）
     conds = [IhPrescription.is_deleted.is_(False)]
+    role = _auth.get("role")
+    sub = actor_of(_auth)
+    if role == "patient":
+        # 患者仅看自己的处方
+        conds.append(IhPrescription.patient_id == (sub or -1))
+    elif role == "doctor":
+        # 医师仅看自己开的处方
+        conds.append(IhPrescription.doctor_id == (sub or -1))
+    elif role == "platform" and patient_id is not None:
+        # 平台可按患者维度检索（运营排查用）
+        conds.append(IhPrescription.patient_id == patient_id)
+    # pharmacist / platform：全量可见（药师审方需看全量，S2 已依赖）
     if status:
         conds.append(IhPrescription.status == status)
     total = (
@@ -126,6 +169,13 @@ async def get_prescription(rx_id: int, _auth: dict = Depends(current_user), db: 
     rx = await db.get(IhPrescription, rx_id)
     if not rx or rx.is_deleted:
         raise BusinessError(ErrorCode.RESOURCE_NOT_FOUND, "处方不存在")
+    # S3 越权修复：患者/医师仅可查看归属自己的处方
+    role = _auth.get("role")
+    sub = actor_of(_auth)
+    if role == "patient" and rx.patient_id != sub:
+        raise BusinessError(ErrorCode.FORBIDDEN, "无权查看他人处方")
+    if role == "doctor" and rx.doctor_id != sub:
+        raise BusinessError(ErrorCode.FORBIDDEN, "无权查看他人处方")
     return success(data=PrescriptionOut.model_validate(rx))
 
 

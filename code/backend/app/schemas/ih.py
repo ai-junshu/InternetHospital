@@ -122,6 +122,8 @@ class OrderCreate(BaseModel):
 
 class OrderPayIn(BaseModel):
     channel: str = "wechat"
+    description: Optional[str] = None  # 支付单备注（如"医疗订单 ORDxxxx"）
+    openid: Optional[str] = None      # 拉起支付的小程序用户 openid
 
 
 class OrderOut(BaseOut):

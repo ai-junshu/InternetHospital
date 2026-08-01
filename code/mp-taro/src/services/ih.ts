@@ -152,10 +152,34 @@ export async function createOrder(body: {
   })
 }
 
-export async function payOrder(orderId: number, channel = 'wechat') {
-  return request<{ order_no: string; pay_status: string; prepay_id: string }>(
-    `${API.orders}/${orderId}/pay`,
-    { method: 'POST', data: { channel } },
+// S5 预支付返回：前端 wx.requestPayment 调起所需字段
+export interface PrepayResult {
+  order_no: string
+  pay_status: string
+  prepay_id: string
+  app_id: string
+  time_stamp: string
+  nonce_str: string
+  package: string
+  pay_sign: string
+  sign_type: string
+}
+
+export async function payOrder(
+  orderId: number,
+  extra?: { channel?: string; description?: string; openid?: string },
+) {
+  return request<PrepayResult>(`${API.orders}/${orderId}/pay`, {
+    method: 'POST',
+    data: { channel: extra?.channel || 'wechat', description: extra?.description, openid: extra?.openid },
+  })
+}
+
+// S5 dev 沙箱：模拟支付成功，驱动支付闭环（生产由微信回调完成）
+export async function payMockSuccess(orderId: number) {
+  return request<{ order_no: string; pay_status: string; trade_state: string }>(
+    `${API.orders}/${orderId}/pay/mock-success`,
+    { method: 'POST', data: {} },
   )
 }
 
@@ -216,6 +240,10 @@ export interface PrescriptionItem {
   qty?: number
   daily_dose?: number
   max_daily_dose?: number
+  // S4 药品联动：前端选药回填的展示字段（后端按 drug_id 反查标准化）
+  otc_type?: string
+  unit?: string
+  price?: number
 }
 
 // 开方：药品明细可经 listDrugs 从药品目录选取（drug_id 关联，见 P6 药品目录端点）。

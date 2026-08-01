@@ -63,6 +63,17 @@ class Settings(BaseSettings):
     wx_appid: str = ""
     wx_secret: str = ""
 
+    # ---------------- 微信支付（第14章 APIv3 JSAPI，迭代 A · S5） ----------------
+    # ⚠️ 以下均为 dev 占位；生产必须经由环境变量注入真实商户凭证，禁止硬编码（第14.5章）。
+    wxpay_mch_id: str = ""            # 商户号
+    wxpay_api_v3_key: str = ""        # APIv3 密钥（AES-GCM 解密回调用）
+    wxpay_cert_serial: str = ""       # 商户证书序列号（请求签名用）
+    wxpay_notify_base_url: str = ""   # 支付回调基础地址，如 https://api.example.com
+    wxpay_appid: str = ""             # 拉起支付的小程序 appid（一般同 wx_appid）
+    # dev 沙箱开关：True 时跳过真实微信调用与回调验签，用模拟 prepay/模拟回调跑通状态机。
+    # 生产必须置 False 并配置真实商户凭证。
+    wxpay_dev_sandbox: bool = True
+
     # ai-service 内部调用（第12章 MLOps）
     ai_service_base_url: str = "http://127.0.0.1:8001"
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Text, View, Button } from '@tarojs/components'
 import Taro from '@tarojs/taro'
-import { listOrders, createOrder, payOrder, type Order } from '@/services/ih'
+import { listOrders, createOrder, payOrder, payMockSuccess, getPrescription, type Order, type Prescription } from '@/services/ih'
 
 const PAY_COLOR: Record<string, string> = {
   unpaid: '#FA8C16',
@@ -43,6 +43,36 @@ export default function OrderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab])
 
+  // S5：从处方药品价格汇总订单金额（单位：分），避免 amount=0
+  const calcAmountFromRx = async (rxId: number): Promise<number> => {
+    try {
+      const rx = (await getPrescription(rxId)) as Prescription
+      const items = (rx.items_json as Array<{ price?: number; qty?: number }>) || []
+      return items.reduce((sum, it) => sum + (Number(it.price) || 0) * (Number(it.qty) || 1), 0)
+    } catch {
+      return 0
+    }
+  }
+
+  // 调起微信支付（prepay → requestPayment → 沙箱模拟成功）
+  const doPay = async (orderId: number, description?: string) => {
+    const prepay = await payOrder(orderId, { description })
+    // dev 沙箱用模拟回调跑通闭环；requestPayment 为真实小程序调起（沙箱无商户号会失败，需容错）
+    try {
+      await Taro.requestPayment({
+        appId: prepay.app_id,
+        timeStamp: prepay.time_stamp,
+        nonceStr: prepay.nonce_str,
+        package: prepay.package,
+        signType: (prepay.sign_type as 'RSA') || 'RSA',
+        paySign: prepay.pay_sign,
+      } as any)
+    } catch {
+      // 沙箱无真实商户，requestPayment 会失败；走 mock-success 跑通状态机
+    }
+    await payMockSuccess(orderId)
+  }
+
   const handleBuy = async () => {
     // 处方药必须凭方购买：未带处方 id 时引导开方
     if (!presetRxId) {
@@ -54,13 +84,14 @@ export default function OrderPage() {
       return
     }
     try {
+      const amount = await calcAmountFromRx(presetRxId)
       const order = await createOrder({
         user_id: user.id,
         type: 'rx',
-        amount: 0,
+        amount,
         prescription_id: presetRxId,
       })
-      await payOrder(order.id)
+      await doPay(order.id, `处方购药 ${order.order_no}`)
       Taro.showToast({ title: '购药成功', icon: 'success' })
       load()
     } catch {
@@ -70,7 +101,7 @@ export default function OrderPage() {
 
   const handlePay = async (o: Order) => {
     try {
-      await payOrder(o.id)
+      await doPay(o.id, `处方购药 ${o.order_no}`)
       Taro.showToast({ title: '支付成功', icon: 'success' })
       setDetail(undefined)
       load()

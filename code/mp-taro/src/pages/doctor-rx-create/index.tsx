@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Button, Input, Text, View } from '@tarojs/components'
 import Taro from '@tarojs/taro'
-import { createPrescription, type PrescriptionItem } from '@/services/ih'
+import { createPrescription, type PrescriptionItem, type IhDrug } from '@/services/ih'
 
 export default function DoctorRxCreate() {
   const params = Taro.getCurrentInstance().router?.params || {}
@@ -17,6 +17,34 @@ export default function DoctorRxCreate() {
 
   const updateItem = (idx: number, patch: Partial<PrescriptionItem>) => {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)))
+  }
+
+  // S4 药品联动：从药品目录选药后回填（drug-catalog?mode=picker 经 Storage 回传）
+  Taro.useDidShow(() => {
+    const picked = Taro.getStorageSync('picked_drug') as IhDrug | ''
+    if (!picked || typeof picked !== 'object') return
+    Taro.removeStorageSync('picked_drug')
+    const filled: PrescriptionItem = {
+      drug_id: picked.id,
+      name: picked.name,
+      spec: picked.spec || '',
+      otc_type: picked.otc_type,
+      unit: picked.unit || '',
+      price: picked.price || 0,
+      qty: 1,
+    }
+    setItems((prev) => {
+      const emptyIdx = prev.findIndex((it) => !it.name.trim())
+      if (emptyIdx >= 0) {
+        return prev.map((it, i) => (i === emptyIdx ? { ...it, ...filled } : it))
+      }
+      return [...prev, filled]
+    })
+    Taro.showToast({ title: `已选：${picked.name}`, icon: 'none' })
+  })
+
+  const openDrugPicker = () => {
+    Taro.navigateTo({ url: '/pages/drug-catalog/index?mode=picker' })
   }
 
   const handleSubmit = async () => {
@@ -48,6 +76,10 @@ export default function DoctorRxCreate() {
         患者ID {patientId} · 医师ID {doctorId}
         {consultationId ? ` · 会话 ${consultationId}` : ''}
       </Text>
+
+      <Button onClick={openDrugPicker} style={{ marginBottom: '12px', background: '#E6F0FF', color: '#1677FF' }}>
+        从药品目录选药
+      </Button>
 
       <Input
         placeholder="诊断结论"

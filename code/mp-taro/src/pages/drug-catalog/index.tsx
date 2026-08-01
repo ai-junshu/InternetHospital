@@ -4,6 +4,7 @@ import Taro from '@tarojs/taro'
 import { listDrugs, type IhDrug } from '@/services/ih'
 
 export default function DrugCatalog() {
+  const isPicker = Taro.getCurrentInstance().router?.params?.mode === 'picker'
   const [kw, setKw] = useState('')
   const [list, setList] = useState<IhDrug[]>([])
   const [loading, setLoading] = useState(false)
@@ -35,7 +36,7 @@ export default function DrugCatalog() {
           margin: '4px 4px 12px',
         }}
       >
-        药品目录
+        {isPicker ? '选择药品（点击回填处方）' : '药品目录'}
       </Text>
       <View
         style={{
@@ -68,12 +69,18 @@ export default function DrugCatalog() {
       {list.map((d) => (
         <View
           key={d.id}
+          onClick={() => {
+            if (!isPicker) return
+            Taro.setStorageSync('picked_drug', d)
+            Taro.navigateBack()
+          }}
           style={{
             background: '#fff',
             borderRadius: '12px',
             padding: '14px',
             marginBottom: '10px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            opacity: isPicker ? 1 : 0.98,
           }}
         >
           <View style={{ display: 'flex', justifyContent: 'space-between' }}>
