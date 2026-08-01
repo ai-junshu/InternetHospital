@@ -268,9 +268,15 @@ class DrugStockCreate(BaseModel):
     safety_stock: int = 0
 
 
-class DrugStockUpdate(BaseModel):
-    stock: Optional[int] = None
-    safety_stock: Optional[int] = None
+class DrugStockAdjust(BaseModel):
+    """库存出入库调整：delta_stock 为增减量（正=入库，负=出库），按当前库存累加。
+
+    direction/in_out 仅作审计语义标记，实际增减以 delta_stock 符号为准。
+    """
+
+    delta_stock: int  # 必传，负数为出库，正数为入库
+    reason: Optional[str] = None  # 出入库事由（审计留痕）
+    safety_stock: Optional[int] = None  # 可选同步调整安全库存阈值（设值语义）
 
 
 class DrugStockOut(BaseOut):

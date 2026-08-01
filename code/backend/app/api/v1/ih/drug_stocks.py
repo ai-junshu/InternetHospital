@@ -12,7 +12,7 @@ from app.core.errors import BusinessError, ErrorCode
 from app.core.response import success
 from app.models.ih_models import IhDrugStock
 from app.schemas.common import PageResult
-from app.schemas.ih import DrugStockCreate, DrugStockOut, DrugStockUpdate
+from app.schemas.ih import DrugStockAdjust, DrugStockCreate, DrugStockOut
 from app.services.audit import write_audit
 
 router = APIRouter(prefix="/drug-stocks", tags=["ih-药品库存"])
@@ -103,29 +103,47 @@ async def upsert_drug_stock(
 @router.patch("/{stock_id}", response_model=None)
 async def adjust_drug_stock(
     stock_id: int,
-    body: DrugStockUpdate,
+    body: DrugStockAdjust,
     request: Request,
     user: dict = Depends(require_role("platform", "pharmacist")),
     db: AsyncSession = Depends(get_db),
 ):
+    """库存出入库调整（delta 增减语义）。
+
+    - delta_stock 为正：入库累加；为负：出库扣减。
+    - 扣减后库存不可为负，否则返回 BAD_REQUEST。
+    - safety_stock 为可选设值项（安全库存阈值），不参与增减。
+    """
     s = await db.get(IhDrugStock, stock_id)
     if not s or s.is_deleted:
-        raise BusinessError(ErrorCode.NOT_FOUND, "库存记录不存在")
-    if body.stock is not None:
-        if body.stock < 0:
-            raise BusinessError(ErrorCode.BAD_REQUEST, "库存不能为负")
-        s.stock = body.stock
+        raise BusinessError(ErrorCode.RESOURCE_NOT_FOUND, "库存记录不存在")
+    if body.delta_stock != 0:
+        new_stock = s.stock + body.delta_stock
+        if new_stock < 0:
+            raise BusinessError(
+                ErrorCode.PARAM_INVALID,
+                f"出库数量超出当前库存（当前 {s.stock}，出库 {abs(body.delta_stock)}）",
+            )
+        s.stock = new_stock
     if body.safety_stock is not None:
+        if body.safety_stock < 0:
+            raise BusinessError(ErrorCode.PARAM_INVALID, "安全库存不能为负")
         s.safety_stock = body.safety_stock
     await db.commit()
     await db.refresh(s)
+    after = DrugStockOut.model_validate(s).model_dump(mode="json")
+    after["adjust_detail"] = {
+        "delta_stock": body.delta_stock,
+        "reason": body.reason,
+        "direction": "in" if body.delta_stock > 0 else ("out" if body.delta_stock < 0 else "none"),
+    }
     await write_audit(
         db,
         action="drug_stock.adjust",
         resource="ih_drug_stock",
         role=user.get("role"),
         actor_id=actor_of(user),
-        after=DrugStockOut.model_validate(s).model_dump(mode="json"),
+        after=after,
         ip=request.client.host if request.client else None,
     )
     return success(data=_to_out(s))

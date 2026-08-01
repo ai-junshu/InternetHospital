@@ -358,7 +358,7 @@ export async function upsertDrugStock(body: {
 
 export async function adjustDrugStock(
   id: number,
-  body: { stock?: number; safety_stock?: number },
+  body: { delta_stock: number; reason?: string; safety_stock?: number },
 ) {
   return http.patch(`${API.ihDrugStocks}/${id}`, body) as Promise<DrugStock>
 }
