@@ -56,6 +56,7 @@ export interface Order {
   type: string // rx | otc
   amount: number
   pay_status: string // unpaid | paid
+  prescription_id?: number // 处方药凭方购买关联处方
   created_at?: string
 }
 

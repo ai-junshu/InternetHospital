@@ -2,7 +2,7 @@
 import httpx
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -100,12 +100,16 @@ async def create_user(
 async def list_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    keyword: str | None = None,
     _auth: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
     from app.schemas.common import PageResult
 
     conds = [IhUser.is_deleted.is_(False)]
+    if keyword:
+        like = f"%{keyword}%"
+        conds.append(or_(IhUser.nickname.ilike(like), IhUser.phone.ilike(like)))
     stmt = select(IhUser)
     if conds:
         stmt = stmt.where(*conds)

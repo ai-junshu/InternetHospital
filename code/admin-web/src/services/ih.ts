@@ -31,12 +31,12 @@ export async function listDoctors(params: {
   return http.get(API.ihDoctors, { params }) as Promise<PageResult<Doctor>>
 }
 
-export async function approveDoctor(id: number) {
-  return http.post(`${API.ihDoctors}/${id}/approve`) as Promise<Doctor>
+export async function approveDoctor(id: number, reviewer_id: number, note?: string) {
+  return http.post(`${API.ihDoctors}/${id}/approve`, { action: 'approve', reviewer_id, note }) as Promise<Doctor>
 }
 
-export async function rejectDoctor(id: number) {
-  return http.post(`${API.ihDoctors}/${id}/reject`) as Promise<Doctor>
+export async function rejectDoctor(id: number, reviewer_id: number, note?: string) {
+  return http.post(`${API.ihDoctors}/${id}/reject`, { action: 'reject', reviewer_id, note }) as Promise<Doctor>
 }
 
 // ---------------- 处方 ----------------
@@ -206,9 +206,10 @@ export async function payOrder(orderId: number) {
 export interface IhSchedule {
   id: number
   doctor_id: number
-  date: string
-  am: boolean
-  pm: boolean
+  work_date: string
+  am_pm: string
+  start_time?: string
+  end_time?: string
   status?: string
   created_at?: string
 }
@@ -217,7 +218,7 @@ export async function listSchedules(params: {
   page?: number
   page_size?: number
   doctor_id?: number
-  date?: string
+  work_date?: string
 }) {
   return http.get(API.ihSchedules, { params }) as Promise<PageResult<IhSchedule>>
 }
@@ -227,6 +228,8 @@ export async function getConsultation(id: number) {
   return http.get(`${API.ihConsultations}/${id}`) as Promise<Consultation>
 }
 
-export async function endConsultation(id: number) {
-  return http.patch(`${API.ihConsultations}/${id}/end`, {}) as Promise<Consultation>
+export async function endConsultation(id: number, doctorId: number) {
+  return http.patch(`${API.ihConsultations}/${id}/end`, null, {
+    params: { doctor_id: doctorId },
+  }) as Promise<Consultation>
 }

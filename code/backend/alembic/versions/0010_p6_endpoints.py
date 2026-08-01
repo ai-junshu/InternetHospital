@@ -16,7 +16,7 @@ from app.models.mt_models import MtTherapistSchedule, MtTherapistTag, MtTherapis
 from app.models.plat_models import PlatComplianceItem
 
 revision = "0010"
-down_revision = "0009_encrypt_secret_and_health_tags"
+down_revision = "0009"
 branch_labels = None
 depends_on = None
 

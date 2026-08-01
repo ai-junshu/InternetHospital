@@ -46,7 +46,7 @@ Start-Process -FilePath "uvicorn" -ArgumentList "app.main:app","--host","127.0.0
 $ready = $false
 for ($i = 0; $i -lt 25; $i++) {
   try {
-    $r = Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/v1/health" -UseBasicParsing -TimeoutSec 2
+    $r = Invoke-WebRequest -Uri "http://127.0.0.1:8000/health" -UseBasicParsing -TimeoutSec 2
     if ($r.StatusCode -eq 200) { $ready = $true; break }
   } catch {}
   Start-Sleep -Seconds 2

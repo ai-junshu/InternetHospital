@@ -126,6 +126,7 @@ class OrderOut(BaseOut):
     type: str
     amount: int
     pay_status: str
+    prescription_id: Optional[int] = None  # 处方药凭方购买关联处方
 
 
 # ---------------- 在线复诊（会话 + 消息） ----------------

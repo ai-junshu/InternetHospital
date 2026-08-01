@@ -55,12 +55,15 @@ async def list_orders(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     user_id: int | None = None,
+    pay_status: str | None = None,
     _auth: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
     conds = [IhOrder.is_deleted.is_(False)]
     if user_id is not None:
         conds.append(IhOrder.user_id == user_id)
+    if pay_status is not None:
+        conds.append(IhOrder.pay_status == pay_status)
     total = await db.scalar(select(func.count()).select_from(IhOrder).where(*conds)) or 0
     rows = (
         await db.execute(

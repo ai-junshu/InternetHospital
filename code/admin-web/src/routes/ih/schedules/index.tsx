@@ -21,20 +21,23 @@ export default function ScheduleAdmin() {
   const columns: ProColumns<IhSchedule>[] = [
     { title: 'ID', dataIndex: 'id', width: 80, search: false },
     { title: '医生ID', dataIndex: 'doctor_id', width: 90 },
-    { title: '出诊日期', dataIndex: 'date', width: 130 },
+    { title: '出诊日期', dataIndex: 'work_date', width: 130 },
     {
-      title: '上午',
-      dataIndex: 'am',
-      width: 80,
+      title: '时段',
+      dataIndex: 'am_pm',
+      width: 100,
       search: false,
-      render: (_, r) => (r.am ? '✅' : '—'),
+      render: (_, r) => {
+        const m: Record<string, string> = { morning: '上午', afternoon: '下午', evening: '晚上' }
+        return m[r.am_pm] || r.am_pm || '-'
+      },
     },
     {
-      title: '下午',
-      dataIndex: 'pm',
-      width: 80,
+      title: '时间',
+      dataIndex: 'start_time',
+      width: 140,
       search: false,
-      render: (_, r) => (r.pm ? '✅' : '—'),
+      render: (_, r) => `${r.start_time || ''}~${r.end_time || ''}`,
     },
     {
       title: '操作',
@@ -73,7 +76,7 @@ export default function ScheduleAdmin() {
             page: params.current,
             page_size: params.pageSize,
             doctor_id: params.doctor_id as number | undefined,
-            date: params.date as string | undefined,
+            work_date: params.work_date as string | undefined,
           })
           return { data: res.items, total: res.total, success: true }
         }}
