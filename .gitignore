@@ -35,3 +35,8 @@ build/
 .vscode/
 .idea/
 .DS_Store
+
+# Office 临时锁文件
+~$*.docx
+~$*.xlsx
+~$*.pptx
