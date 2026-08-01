@@ -26,6 +26,14 @@ def test_asset_new_routes_registered():
         "/api/v1/plat/data-assets/{asset_id}/lifecycle",
         "/api/v1/plat/data-assets/export",
         "/api/v1/plat/data-assets/{asset_id}/collect",
+        "/api/v1/plat/data-assets/collectors",
+    ]:
+        assert p in paths, f"缺少路由 {p}"
+
+    # 数据湖编排路由（P3）
+    for p in [
+        "/api/v1/plat/data-lake/status",
+        "/api/v1/plat/data-lake/init",
     ]:
         assert p in paths, f"缺少路由 {p}"
 
@@ -130,7 +138,17 @@ async def _run():
         r = await client.post(f"/api/v1/plat/data-assets/{a1}/collect", headers=H(token))
         assert r.json()["code"] == 0, r.text
         # 当前业务表无数据，data_volume 应被回写为 0（采集器运行过）
-        assert r.json()["data"]["data_volume"] == 0
+        assert r.json()["data"]["asset"]["data_volume"] == 0
+        # 采集器按名称推断为 treatment_outcome（配置化路由）
+        assert r.json()["data"]["metrics"]["collector_type"] == "treatment_outcome"
+
+        # ---- 采集器清单端点（配置化透明化）----
+        r = await client.get("/api/v1/plat/data-assets/collectors", headers=H(token))
+        assert r.json()["code"] == 0, r.text
+        assert any(c["type"] == "treatment_outcome" for c in r.json()["data"]["collectors"])
+        # 存量资产 SEED治疗效果数据集 应被分配到 treatment_outcome
+        assigns = r.json()["data"]["assignments"]
+        assert any(a["asset_id"] == a1 and a["collector_type"] == "treatment_outcome" for a in assigns)
 
 
 @pytest.mark.skipif(not _db_available(), reason="需要可达的 Postgres")

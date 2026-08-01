@@ -73,3 +73,58 @@ def build_features(customer_id: int, raw: Optional[dict] = None) -> dict:
         "risk_flags": risk_flags,
         "risk_score": risk_score,
     }
+
+
+# 各模型所需的「契约特征映射」：把 build_features 的输出映射到 feature_contract 列。
+# 训练脚本与推理入口共用 feature_contract.MODEL_FEATURE_MAP，保证列一致。
+_MODEL_FEATURE_MAP = {
+    "risk_profile": lambda f: {
+        "age": f["age"],
+        "chronic_disease_count": f["chronic_count"],
+        "pain_score": f["pain_score"],
+        "anxiety_score": 0.0,  # 联邦取数暂未提供，默认中性
+        "adherence_score": f["adherence_rate"],
+        "prior_dropout_count": 0,
+        "treatment_weeks": f["treatment_count"],
+        "bmi": 24.0,
+        "sleep_disorder_score": 0.0,
+        "plan_coverage": f["effect_score"],
+    },
+    "plan_recommend": lambda f: {
+        "pain_score": f["pain_score"],
+        "anxiety_score": 0.0,
+        "sleep_score": 0.0,
+        "adherence_score": f["adherence_rate"],
+        "age": f["age"],
+        "treatment_weeks": f["treatment_count"],
+        "chronic_disease_count": f["chronic_count"],
+        "prior_plan_satisfaction": f["nps"],
+        "plan_completion_rate": f["adherence_rate"],
+        "goal_achievement": f["effect_score"],
+        "preference_strength": 0.0,
+        "exercise_score": 0.0,
+    },
+    "repurchase_prediction": lambda f: {
+        "total_amount": f["treatment_count"] * 100.0,
+        "purchase_count": f["treatment_count"],
+        "recency_days": 30.0,
+        "avg_order_value": 100.0,
+        "repurchase_intent": f["nps"] / 10.0,
+        "active_days": f["treatment_count"] * 2,
+        "plan_completion_rate": f["adherence_rate"],
+        "satisfaction": f["nps"],
+        "coupon_sensitivity": 0.5,
+        "referral_count": 0,
+        "is_birthday_month": 0,
+        "holiday_factor": 0.0,
+    },
+}
+
+
+def to_model_features(customer_id: int, raw: Optional[dict], model_name: str) -> dict:
+    """产出与 feature_contract 完全一致列序的特征 dict（供 build_frame）。"""
+    base = build_features(customer_id, raw)
+    mapper = _MODEL_FEATURE_MAP.get(model_name)
+    if mapper is None:
+        return base
+    return mapper(base)

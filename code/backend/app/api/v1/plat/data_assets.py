@@ -104,6 +104,38 @@ async def export_assets(
     )
 
 
+@router.get("/collectors", response_model=None)
+async def list_collectors(
+    db: AsyncSession = Depends(get_db),
+    _user: dict = Depends(require_role(*_ROLES)),
+):
+    """列出已注册的采集器（类型/口径/描述），以及各资产当前命中的采集类型。"""
+    from app.services.collector_config import (
+        list_collectors as list_collector_specs,
+        resolve_collector_type,
+    )
+
+    rows = (
+        await db.execute(
+            select(PlatDataAsset)
+            .where(PlatDataAsset.is_deleted.is_(False))
+            .order_by(PlatDataAsset.id.desc())
+            .limit(500)
+        )
+    ).scalars().all()
+    assignments = [
+        {
+            "asset_id": r.id,
+            "asset_name": r.name,
+            "collector_type": resolve_collector_type(
+                r.name, getattr(r, "collector_type", None)
+            ),
+        }
+        for r in rows
+    ]
+    return success(data={"collectors": list_collector_specs(), "assignments": assignments})
+
+
 @router.get("/{asset_id}", response_model=None)
 async def get_data_asset(
     asset_id: int,
@@ -368,22 +400,16 @@ async def collect_asset(
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(require_role(*_ROLES)),
 ):
-    """手动触发资产指标采集：从业务表聚合质量分与数据量回写（P1 运行时闭环）。"""
+    """手动触发资产指标采集：从业务表聚合质量分与数据量回写（P1 运行时闭环）。
+
+    采集器按资产 collector_type（或名称推断）路由到通用聚合器，配置化、无需改码。
+    返回采集结果（含所用采集器类型/口径），便于运营透明。
+    """
     a = await db.get(PlatDataAsset, asset_id)
     if not a or a.is_deleted:
         raise BusinessError(ErrorCode.RESOURCE_NOT_FOUND, "数据资产不存在")
-    metrics = await collect_asset_metrics(db, a.name)
-    if metrics is None:
-        return success(
-            data=DataAssetOut.model_validate(a),
-            message="无匹配采集器，指标未变更",
-        )
     before = DataAssetOut.model_validate(a).model_dump(mode="json")
-    if metrics.get("data_volume") is not None:
-        a.data_volume = metrics["data_volume"]
-    if metrics.get("quality_score") is not None:
-        a.quality_score = metrics["quality_score"]
-    await db.commit()
+    metrics = await collect_asset_metrics(db, a)  # 传资产对象，内部按类型路由+回写
     await db.refresh(a)
     await write_audit(
         db,
@@ -395,4 +421,4 @@ async def collect_asset(
         after=DataAssetOut.model_validate(a).model_dump(mode="json"),
         ip=request.client.host if request.client else None,
     )
-    return success(data=DataAssetOut.model_validate(a))
+    return success(data={"asset": DataAssetOut.model_validate(a), "metrics": metrics})

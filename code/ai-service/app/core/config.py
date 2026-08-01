@@ -10,7 +10,9 @@ class Settings(BaseSettings):
     app_name: str = "互联网医疗中心平台 AI 服务"
     debug: bool = False
 
-    mlflow_tracking_uri: str = "http://localhost:5000"
+    # MLflow registry：默认文件型存储（sqlite），开箱即用的 registry 加载闭环，
+    # 无需启动 server。生产环境通过环境变量 MLFLOW_TRACKING_URI 指向 server。
+    mlflow_tracking_uri: str = "sqlite:///tracking.db"
     model_registry_stage: str = "Production"
     service_port: int = 8001
 

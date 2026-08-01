@@ -5,7 +5,8 @@ import pandas as pd
 from app.core.response import success
 from app.schemas.predict import RepurchasePredictionOut
 from app.ml.model_loader import load_model
-from app.ml.feature_store import build_features
+from app.ml.feature_store import to_model_features
+from app.ml.feature_contract import build_frame
 
 router = APIRouter(prefix="/repurchase-prediction", tags=["复购预测"])
 
@@ -22,8 +23,8 @@ async def predict(
     effect_level: str | None = None,
 ):
     model, version = load_model("repurchase_prediction")
-    # P2 特征工程：聚合原始指标 → 标准化 + 派生特征
-    features = build_features(
+    # P2 特征工程：聚合原始指标 → 标准化特征（原始不出域，联邦取数语义）
+    feats = to_model_features(
         customer_id,
         {
             "age": age,
@@ -32,14 +33,10 @@ async def predict(
             "nps": nps,
             "effect_level": effect_level,
         },
+        model_name="repurchase_prediction",
     )
-    X = pd.DataFrame([{
-        "age": age,
-        "visit_freq": visit_freq,
-        "last_gap_days": last_gap_days,
-        "adherence_rate": features["adherence_rate"],
-        "nps": features["nps"],
-    }])
+    # 按 feature_contract 列序构造，保证与训练一致（registry 模型可一致加载）
+    X = build_frame("repurchase_prediction", [feats])
     prob = max(0.0, min(1.0, float(model.predict(X)[0])))
     risk_level = "high" if prob > 0.66 else ("medium" if prob > 0.33 else "low")
     data = RepurchasePredictionOut(

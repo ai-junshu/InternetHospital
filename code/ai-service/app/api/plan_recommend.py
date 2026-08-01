@@ -6,7 +6,8 @@ import pandas as pd
 from app.core.response import success
 from app.schemas.predict import PlanRecommendOut
 from app.ml.model_loader import load_model
-from app.ml.feature_store import build_features
+from app.ml.feature_store import build_features, to_model_features
+from app.ml.feature_contract import build_frame
 from app.rag.retriever import build_query, build_rationale, retrieve
 
 router = APIRouter(prefix="/plan-recommend", tags=["方案推荐"])
@@ -35,26 +36,20 @@ class PlanRecommendReq(BaseModel):
 async def recommend(req: PlanRecommendReq):
     model, version = load_model("plan_recommend")
     # P2 特征工程：入参原始指标 → 标准化特征（原始不出域，联邦取数语义）
-    features = build_features(
-        req.customer_id,
-        {
-            "pain_type": req.pain_type,
-            "pain_score": req.pain_score,
-            "age": req.age,
-            "chronic_count": req.chronic_count,
-            "nps": req.nps,
-            "effect_level": req.effect_level,
-            "treatment_count": req.treatment_count,
-            "adherent_count": req.adherent_count,
-        },
-    )
-    X = pd.DataFrame([{
-        "age": features["age"],
-        "pain_score": features["pain_score"],
-        "chronic_count": features["chronic_count"],
-        "adherence_rate": features["adherence_rate"],
-        "effect_score": features["effect_score"],
-    }])
+    raw = {
+        "pain_type": req.pain_type,
+        "pain_score": req.pain_score,
+        "age": req.age,
+        "chronic_count": req.chronic_count,
+        "nps": req.nps,
+        "effect_level": req.effect_level,
+        "treatment_count": req.treatment_count,
+        "adherent_count": req.adherent_count,
+    }
+    feats = to_model_features(req.customer_id, raw, model_name="plan_recommend")
+    features = build_features(req.customer_id, raw)  # 供下方 RAG rationale 引用中间字段
+    # 按 feature_contract 列序构造，保证与训练一致（registry 模型可一致加载）
+    X = build_frame("plan_recommend", [feats])
     idx = int(model.predict(X)[0])
     plan = PLANS.get(idx, PLANS[0])
     # RAG 可解释：检索知识库，生成引用真实条目的依据（非占位文案）

@@ -5,7 +5,8 @@ import pandas as pd
 from app.core.response import success
 from app.schemas.predict import RiskProfileOut
 from app.ml.model_loader import load_model
-from app.ml.feature_store import build_features
+from app.ml.feature_store import to_model_features
+from app.ml.feature_contract import build_frame
 
 router = APIRouter(prefix="/risk-profile", tags=["风险画像"])
 
@@ -26,8 +27,8 @@ async def profile(
     effect_level: str | None = None,
 ):
     model, version = load_model("risk_profile")
-    # P2 特征工程：聚合原始指标 → 标准化 + 派生特征
-    features = build_features(
+    # P2 特征工程：聚合原始指标 → 标准化特征（原始不出域，联邦取数语义）
+    feats = to_model_features(
         customer_id,
         {
             "age": age,
@@ -38,13 +39,10 @@ async def profile(
             "nps": nps,
             "effect_level": effect_level,
         },
+        model_name="risk_profile",
     )
-    X = pd.DataFrame([{
-        "age": age,
-        "bmi": bmi,
-        "comorbidity_count": comorbidity_count,
-        "risk_score": features["risk_score"],
-    }])
+    # 按 feature_contract 列序构造，保证与训练一致（registry 模型可一致加载）
+    X = build_frame("risk_profile", [feats])
     idx = int(model.predict(X)[0])
     label = _LABELS.get(idx, "medium")
     data = RiskProfileOut(

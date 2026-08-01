@@ -2,7 +2,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import plan_recommend, repurchase_prediction, risk_profile
+from app.api import (
+    model_registry,
+    plan_recommend,
+    repurchase_prediction,
+    risk_profile,
+)
 from app.core.config import settings
 from app.core.response import success
 
@@ -19,6 +24,7 @@ app.add_middleware(
 app.include_router(repurchase_prediction.router)
 app.include_router(plan_recommend.router)
 app.include_router(risk_profile.router)
+app.include_router(model_registry.router)
 
 
 @app.get("/health")
