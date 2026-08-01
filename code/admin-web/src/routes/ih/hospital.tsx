@@ -9,13 +9,21 @@ import {
   ProFormDigit,
   ActionType,
 } from '@ant-design/pro-components'
-import { Button, Tag, Tabs, Space, Typography, message } from 'antd'
+import { Button, Tag, Tabs, Space, Typography, message, Popconfirm } from 'antd'
 import type { ProColumns } from '@ant-design/pro-components'
 import {
   listDoctors,
   approveDoctor,
   rejectDoctor,
+  listPharmacies,
+  createPharmacy,
+  deletePharmacy,
+  listDepartments,
+  createDepartment,
+  deleteDepartment,
   type Doctor,
+  type Pharmacy,
+  type Department,
 } from '@/services/ih'
 
 const statusColor: Record<string, string> = {
@@ -24,33 +32,9 @@ const statusColor: Record<string, string> = {
   disabled: 'red',
 }
 
-// 科室（后端接口 /ih/departments 待对接，当前前端演示态）
-interface DeptItem {
-  id: number
-  name: string
-  head: string
-  doctor_cnt: number
-  remark?: string
-}
-
-// 合作药房（后端接口 /ih/pharmacies 待对接，当前前端演示态）
-interface PharmacyItem {
-  id: number
-  name: string
-  region: string
-  license: string
-  status: string
-}
-
-const DEMO_DEPTS: DeptItem[] = [
-  { id: 1, name: '疼痛科', head: '张明', doctor_cnt: 6 },
-  { id: 2, name: '康复医学科', head: '李华', doctor_cnt: 4 },
-]
-
-const DEMO_PHARMACIES: PharmacyItem[] = [
-  { id: 1, name: '星耀互联网药房（北京）', region: '华北', license: '京药许2026-001', status: 'active' },
-  { id: 2, name: '星耀互联网药房（上海）', region: '华东', license: '沪药许2026-014', status: 'active' },
-]
+const role = localStorage.getItem('role')
+const canEditPharmacy = role === 'platform'
+const canEditDept = role === 'platform'
 
 function DoctorTab() {
   const actionRef = useRef<ActionType>()
@@ -120,89 +104,159 @@ function DoctorTab() {
 }
 
 function DeptTab() {
-  const [data, setData] = useState<DeptItem[]>(DEMO_DEPTS)
-  const columns: ProColumns<DeptItem>[] = [
+  const actionRef = useRef<ActionType>()
+  const columns: ProColumns<Department>[] = [
     { title: 'ID', dataIndex: 'id', width: 72 },
     { title: '科室名称', dataIndex: 'name' },
     { title: '科室主任', dataIndex: 'head', width: 120 },
-    { title: '医师数', dataIndex: 'doctor_cnt', width: 90 },
     { title: '备注', dataIndex: 'remark', ellipsis: true },
+    {
+      title: '操作',
+      valueType: 'option',
+      render: (_, r) =>
+        canEditDept ? (
+          <Popconfirm
+            key="del"
+            title="确认删除该科室？"
+            onConfirm={async () => {
+              try {
+                await deleteDepartment(r.id)
+                message.success('已删除')
+                actionRef.current?.reload()
+              } catch (e: any) {
+                message.error(e?.response?.data?.message || '删除失败')
+              }
+            }}
+          >
+            <a>删除</a>
+          </Popconfirm>
+        ) : (
+          <span>—</span>
+        ),
+    },
   ]
   return (
     <>
-      <ProTable<DeptItem>
+      <ProTable<Department>
         rowKey="id"
         columns={columns}
-        dataSource={data}
         search={false}
         pagination={false}
-        toolBarRender={() => [
-          <ModalForm<DeptItem>
-            key="add"
-            title="新增科室"
-            trigger={<Button type="primary">新增科室</Button>}
-            onFinish={async (v) => {
-              setData((d) => [...d, { ...v, id: Date.now() }])
-              message.success('已新增（演示态，待后端对接）')
-              return true
-            }}
-          >
-            <ProFormText name="name" label="科室名称" rules={[{ required: true }]} />
-            <ProFormText name="head" label="科室主任" />
-            <ProFormDigit name="doctor_cnt" label="医师数" />
-            <ProFormTextArea name="remark" label="备注" />
-          </ModalForm>,
-        ]}
+        actionRef={actionRef}
+        request={async () => {
+          const res = await listDepartments({ page: 1, page_size: 200 })
+          return { data: res.items, success: true }
+        }}
+        toolBarRender={() =>
+          canEditDept
+            ? [
+                <ModalForm<Department>
+                  key="add"
+                  title="新增科室"
+                  trigger={<Button type="primary">新增科室</Button>}
+                  onFinish={async (v) => {
+                    try {
+                      await createDepartment({ name: v.name, head: v.head, remark: v.remark })
+                      message.success('已新增')
+                      actionRef.current?.reload()
+                      return true
+                    } catch (e: any) {
+                      message.error(e?.response?.data?.message || '新增失败')
+                      return false
+                    }
+                  }}
+                >
+                  <ProFormText name="name" label="科室名称" rules={[{ required: true }]} />
+                  <ProFormText name="head" label="科室主任" />
+                  <ProFormTextArea name="remark" label="备注" />
+                </ModalForm>,
+              ]
+            : []
+        }
       />
-      <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
-        注：科室管理后端接口（<code>/ih/departments</code>）待对接，当前为前端演示态。
-      </Typography.Paragraph>
     </>
   )
 }
 
 function PharmacyTab() {
-  const [data, setData] = useState<PharmacyItem[]>(DEMO_PHARMACIES)
-  const columns: ProColumns<PharmacyItem>[] = [
+  const actionRef = useRef<ActionType>()
+  const columns: ProColumns<Pharmacy>[] = [
     { title: 'ID', dataIndex: 'id', width: 72 },
     { title: '药房名称', dataIndex: 'name' },
     { title: '区域', dataIndex: 'region', width: 90 },
-    { title: '药品经营许可证', dataIndex: 'license', width: 160 },
+    { title: '药品经营许可证', dataIndex: 'license_no', width: 160 },
+    { title: '联系人', dataIndex: 'contact', width: 120 },
     {
       title: '状态',
       dataIndex: 'status',
       width: 90,
       render: (_, r) => <Tag color={r.status === 'active' ? 'green' : 'red'}>{r.status}</Tag>,
     },
+    {
+      title: '操作',
+      valueType: 'option',
+      render: (_, r) =>
+        canEditPharmacy
+          ? [
+              <Popconfirm
+                key="del"
+                title="确认删除该药房？"
+                onConfirm={async () => {
+                  try {
+                    await deletePharmacy(r.id)
+                    message.success('已删除')
+                    actionRef.current?.reload()
+                  } catch (e: any) {
+                    message.error(e?.response?.data?.message || '删除失败')
+                  }
+                }}
+              >
+                <a>删除</a>
+              </Popconfirm>,
+            ]
+          : [],
+    },
   ]
   return (
     <>
-      <ProTable<PharmacyItem>
+      <ProTable<Pharmacy>
         rowKey="id"
         columns={columns}
-        dataSource={data}
         search={false}
         pagination={false}
-        toolBarRender={() => [
-          <ModalForm<PharmacyItem>
-            key="add"
-            title="新增合作药房"
-            trigger={<Button type="primary">新增药房</Button>}
-            onFinish={async (v) => {
-              setData((d) => [...d, { ...v, id: Date.now(), status: 'active' }])
-              message.success('已新增（演示态，待后端对接）')
-              return true
-            }}
-          >
-            <ProFormText name="name" label="药房名称" rules={[{ required: true }]} />
-            <ProFormText name="region" label="区域" />
-            <ProFormText name="license" label="药品经营许可证" rules={[{ required: true }]} />
-          </ModalForm>,
-        ]}
+        actionRef={actionRef}
+        request={async () => {
+          const res = await listPharmacies({ page: 1, page_size: 200 })
+          return { data: res.items, success: true }
+        }}
+        toolBarRender={() =>
+          canEditPharmacy
+            ? [
+                <ModalForm<Pharmacy>
+                  key="add"
+                  title="新增合作药房"
+                  trigger={<Button type="primary">新增药房</Button>}
+                  onFinish={async (v) => {
+                    try {
+                      await createPharmacy({ name: v.name, region: v.region, license_no: v.license_no, contact: v.contact })
+                      message.success('已新增')
+                      actionRef.current?.reload()
+                      return true
+                    } catch (e: any) {
+                      message.error(e?.response?.data?.message || '新增失败')
+                      return false
+                    }
+                  }}
+                >
+                  <ProFormText name="name" label="药房名称" rules={[{ required: true }]} />
+                  <ProFormText name="region" label="区域" />
+                  <ProFormText name="license_no" label="药品经营许可证" rules={[{ required: true }]} />
+                  <ProFormText name="contact" label="联系人/电话" />
+                </ModalForm>,
+              ]
+            : []
+        }
       />
-      <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
-        注：合作药房管理后端接口（<code>/ih/pharmacies</code>）待对接，当前为前端演示态。
-      </Typography.Paragraph>
     </>
   )
 }

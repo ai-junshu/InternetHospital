@@ -22,6 +22,11 @@ export const API = {
   ihPrescriptions: '/ih/prescriptions',
   ihDrugs: '/ih/drugs',
   ihSchedules: '/ih/schedules',
+  ihPharmacies: '/ih/pharmacies',
+  ihDrugStocks: '/ih/drug-stocks',
+  ihDepartments: '/ih/departments',
+  ihComplaints: '/ih/complaints',
+  ihDashboards: '/ih/dashboards',
   // 平台管理（plat）
   dataAssets: '/plat/data-assets',
   aiModels: '/plat/ai-models',

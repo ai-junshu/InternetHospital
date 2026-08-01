@@ -233,3 +233,90 @@ class DrugOut(BaseOut):
     unit: Optional[str] = None
     price: Optional[int] = None
     status: str
+
+
+# ---------------- 合作药房 ----------------
+class PharmacyCreate(BaseModel):
+    name: str
+    region: Optional[str] = None
+    license_no: Optional[str] = None
+    contact: Optional[str] = None
+    status: str = "active"
+
+
+class PharmacyUpdate(BaseModel):
+    name: Optional[str] = None
+    region: Optional[str] = None
+    license_no: Optional[str] = None
+    contact: Optional[str] = None
+    status: Optional[str] = None
+
+
+class PharmacyOut(BaseOut):
+    name: str
+    region: Optional[str] = None
+    license_no: Optional[str] = None
+    contact: Optional[str] = None
+    status: str
+
+
+# ---------------- 药品库存 ----------------
+class DrugStockCreate(BaseModel):
+    drug_id: int
+    pharmacy_id: int
+    stock: int = 0
+    safety_stock: int = 0
+
+
+class DrugStockUpdate(BaseModel):
+    stock: Optional[int] = None
+    safety_stock: Optional[int] = None
+
+
+class DrugStockOut(BaseOut):
+    drug_id: int
+    pharmacy_id: int
+    stock: int
+    safety_stock: int
+    is_low: bool  # 低于安全库存阈值
+
+
+# ---------------- 投诉与售后 ----------------
+class ComplaintCreate(BaseModel):
+    order_id: int | None = None
+    user_id: int | None = None
+    type: str = "service"  # quality/service/refund
+    content: str
+
+
+class ComplaintReply(BaseModel):
+    status: str  # processing/resolved/closed
+    reply: str | None = None
+
+
+class ComplaintOut(BaseOut):
+    order_id: int | None
+    user_id: int | None
+    type: str
+    content: str
+    status: str
+    reply: str | None
+
+
+# ---------------- 科室结构 ----------------
+class DepartmentCreate(BaseModel):
+    name: str
+    head: Optional[str] = None
+    remark: Optional[str] = None
+
+
+class DepartmentUpdate(BaseModel):
+    name: Optional[str] = None
+    head: Optional[str] = None
+    remark: Optional[str] = None
+
+
+class DepartmentOut(BaseOut):
+    name: str
+    head: Optional[str] = None
+    remark: Optional[str] = None

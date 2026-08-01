@@ -28,6 +28,7 @@ export default function BasicLayout() {
               { path: '/ih/schedules', name: '医生排班' },
               { path: '/ih/rx-review', name: '处方审核' },
               { path: '/ih/drug-catalog', name: '药品目录' },
+              { path: '/ih/complaints', name: '投诉与售后' },
             ],
           },
           {

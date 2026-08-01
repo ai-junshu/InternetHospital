@@ -9,11 +9,9 @@ import {
 import { Tag, Space, message } from 'antd'
 import type { ProColumns } from '@ant-design/pro-components'
 import {
-  listDoctors,
   listPrescriptions,
-  listConsultations,
-  listOrders,
   auditPrescription,
+  getDashboards,
   type Prescription,
 } from '@/services/ih'
 
@@ -24,16 +22,27 @@ const rxColor: Record<string, string> = {
 }
 
 export default function IhOperations() {
-  const [stats, setStats] = useState({ doctors: 0, pendingRx: 0, consults: 0, paidOrders: 0 })
+  const [stats, setStats] = useState({
+    doctors: 0,
+    pendingRx: 0,
+    consults: 0,
+    paidOrders: 0,
+    passRate: 0,
+    complaints: 0,
+    lowStock: 0,
+  })
   useEffect(() => {
     ;(async () => {
-      const [d, rx, c, o] = await Promise.all([
-        listDoctors({ status: 'active', page: 1, page_size: 1 }),
-        listPrescriptions({ status: 'pending_audit', page: 1, page_size: 1 }),
-        listConsultations({ page: 1, page_size: 1 }),
-        listOrders({ pay_status: 'paid', page: 1, page_size: 1 }),
-      ])
-      setStats({ doctors: d.total, pendingRx: rx.total, consults: c.total, paidOrders: o.total })
+      const d = await getDashboards()
+      setStats({
+        doctors: d.core.active_doctors,
+        pendingRx: d.core.pending_prescriptions,
+        consults: d.core.total_consultations,
+        paidOrders: d.core.paid_orders,
+        passRate: d.compliance.prescription_pass_rate,
+        complaints: d.compliance.complaint_total,
+        lowStock: d.warning.low_stock_count,
+      })
     })().catch(() => {})
   }, [])
 
@@ -100,6 +109,9 @@ export default function IhOperations() {
         <StatisticCard statistic={{ title: '待审处方', value: stats.pendingRx }} />
         <StatisticCard statistic={{ title: '累计问诊', value: stats.consults }} />
         <StatisticCard statistic={{ title: '已支付订单', value: stats.paidOrders }} />
+        <StatisticCard statistic={{ title: '审方通过率', value: `${(stats.passRate * 100).toFixed(1)}%` }} />
+        <StatisticCard statistic={{ title: '累计投诉', value: stats.complaints }} />
+        <StatisticCard statistic={{ title: '低库存预警', value: stats.lowStock }} />
       </ProCard>
       <ProCard title="异常预警 · 处方审核与合理用药" style={{ marginTop: 16 }}>
         <ProTable<Prescription>

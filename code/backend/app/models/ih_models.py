@@ -168,3 +168,58 @@ class IhDrug(Base, TimestampMixin):
     unit: Mapped[str | None] = mapped_column(String(16))
     price: Mapped[int | None] = mapped_column(Integer)  # 单位：分
     status: Mapped[str] = mapped_column(String(16), default="on")  # on/off
+
+
+class IhPharmacy(Base, TimestampMixin):
+    """合作药房（互联网医院处方药履约节点，PRD 3.3.2 药房管理）。
+
+    作为药品库存、药师归属的实体承接方；IhPharmacist.pharmacy_id 关联本表。
+    """
+
+    __tablename__ = "ih_pharmacy"
+    name: Mapped[str] = mapped_column(String(128), index=True)
+    region: Mapped[str | None] = mapped_column(String(64))  # 区域/城市
+    license_no: Mapped[str | None] = mapped_column(String(64))  # 药品经营许可证号
+    contact: Mapped[str | None] = mapped_column(String(64))  # 联系人/电话（脱敏）
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active/disabled
+
+
+class IhDrugStock(Base, TimestampMixin):
+    """药品库存（按 药房×药品 维度，PRD 3.3.2 药房库存管理）。
+
+    与 ih_drug 解耦，库存频繁变动不污染药品目录；联合唯一约束（drug_id, pharmacy_id）。
+    """
+
+    __tablename__ = "ih_drug_stock"
+    drug_id: Mapped[int] = mapped_column(ForeignKey("ih_drug.id"), index=True)
+    pharmacy_id: Mapped[int] = mapped_column(ForeignKey("ih_pharmacy.id"), index=True)
+    stock: Mapped[int] = mapped_column(Integer, default=0)  # 当前库存
+    safety_stock: Mapped[int] = mapped_column(Integer, default=0)  # 安全库存阈值
+
+
+class IhComplaint(Base, TimestampMixin):
+    """投诉与售后（PRD 3.3.4 投诉与售后，患者权益闭环）。
+
+    order_id 关联 IhOrder（含 prescription_id/type），user_id 关联 IhUser（脱敏展示）。
+    状态机：pending → processing → resolved/closed。
+    """
+
+    __tablename__ = "ih_complaint"
+    order_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 关联 ih_order.id
+    user_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 关联 ih_user.id（脱敏）
+    type: Mapped[str] = mapped_column(String(16), default="service")  # quality/service/refund
+    content: Mapped[str] = mapped_column(String(1024))
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/processing/resolved/closed
+    reply: Mapped[str | None] = mapped_column(String(1024))  # 处理回复
+
+
+class IhDepartment(Base, TimestampMixin):
+    """科室结构（PRD 3.3 医院管理，组织管理维度）。
+
+    本次仅建表 + CRUD；IhDoctor.dept 保持 String 命名冗余，不在本次外键化（避免波及医师链路）。
+    """
+
+    __tablename__ = "ih_department"
+    name: Mapped[str] = mapped_column(String(64), index=True)
+    head: Mapped[str | None] = mapped_column(String(64))  # 科室主任
+    remark: Mapped[str | None] = mapped_column(String(255))

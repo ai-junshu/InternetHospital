@@ -274,3 +274,176 @@ export async function endConsultation(id: number, doctorId: number) {
     params: { doctor_id: doctorId },
   }) as Promise<Consultation>
 }
+
+// ---------------- 合作药房（P3 业务闭环） ----------------
+export interface Pharmacy {
+  id: number
+  name: string
+  region?: string
+  license_no?: string
+  contact?: string
+  status: string
+  created_at?: string
+}
+
+export async function listPharmacies(params: {
+  keyword?: string
+  status?: string
+  page?: number
+  page_size?: number
+}) {
+  return http.get(API.ihPharmacies, { params }) as Promise<PageResult<Pharmacy>>
+}
+
+export async function getPharmacy(id: number) {
+  return http.get(`${API.ihPharmacies}/${id}`) as Promise<Pharmacy>
+}
+
+export async function createPharmacy(body: {
+  name: string
+  region?: string
+  license_no?: string
+  contact?: string
+  status?: string
+}) {
+  return http.post(API.ihPharmacies, body) as Promise<Pharmacy>
+}
+
+export async function updatePharmacy(
+  id: number,
+  body: {
+    name?: string
+    region?: string
+    license_no?: string
+    contact?: string
+    status?: string
+  },
+) {
+  return http.patch(`${API.ihPharmacies}/${id}`, body) as Promise<Pharmacy>
+}
+
+export async function deletePharmacy(id: number) {
+  return http.delete(`${API.ihPharmacies}/${id}`) as Promise<void>
+}
+
+// ---------------- 药品库存（P3 业务闭环） ----------------
+export interface DrugStock {
+  id: number
+  drug_id: number
+  pharmacy_id: number
+  stock: number
+  safety_stock: number
+  is_low: boolean
+  created_at?: string
+}
+
+export async function listDrugStocks(params: {
+  pharmacy_id?: number
+  drug_id?: number
+  low_only?: boolean
+  page?: number
+  page_size?: number
+}) {
+  return http.get(API.ihDrugStocks, { params }) as Promise<PageResult<DrugStock>>
+}
+
+export async function upsertDrugStock(body: {
+  drug_id: number
+  pharmacy_id: number
+  stock: number
+  safety_stock?: number
+}) {
+  return http.post(API.ihDrugStocks, body) as Promise<DrugStock>
+}
+
+export async function adjustDrugStock(
+  id: number,
+  body: { stock?: number; safety_stock?: number },
+) {
+  return http.patch(`${API.ihDrugStocks}/${id}`, body) as Promise<DrugStock>
+}
+
+// ---------------- 投诉与售后（P3 业务闭环） ----------------
+export interface Complaint {
+  id: number
+  order_id?: number | null
+  user_id?: number | null
+  type: string // quality/service/refund
+  content: string
+  status: string // pending/processing/resolved/closed
+  reply?: string | null
+  created_at?: string
+}
+
+export async function listComplaints(params: {
+  status?: string
+  type?: string
+  page?: number
+  page_size?: number
+}) {
+  return http.get(API.ihComplaints, { params }) as Promise<PageResult<Complaint>>
+}
+
+export async function getComplaint(id: number) {
+  return http.get(`${API.ihComplaints}/${id}`) as Promise<Complaint>
+}
+
+export async function handleComplaint(
+  id: number,
+  body: { status: string; reply?: string },
+) {
+  return http.patch(`${API.ihComplaints}/${id}`, body) as Promise<Complaint>
+}
+
+// ---------------- 监管看板（P3 业务闭环，聚合端点） ----------------
+export interface DashboardData {
+  core: {
+    active_doctors: number
+    pending_prescriptions: number
+    total_consultations: number
+    paid_orders: number
+  }
+  compliance: {
+    prescription_total: number
+    prescription_approved: number
+    prescription_pass_rate: number
+    complaint_total: number
+  }
+  warning: {
+    low_stock_count: number
+  }
+  rx_trend_30d: { date: string; count: number }[]
+}
+
+export async function getDashboards() {
+  return http.get(API.ihDashboards) as Promise<DashboardData>
+}
+
+// ---------------- 科室结构（P3 业务闭环） ----------------
+export interface Department {
+  id: number
+  name: string
+  head?: string | null
+  remark?: string | null
+  created_at?: string
+}
+
+export async function listDepartments(params: { keyword?: string; page?: number; page_size?: number }) {
+  return http.get(API.ihDepartments, { params }) as Promise<PageResult<Department>>
+}
+
+export async function createDepartment(body: { name: string; head?: string; remark?: string }) {
+  return http.post(API.ihDepartments, body) as Promise<Department>
+}
+
+export async function updateDepartment(
+  id: number,
+  body: { name?: string; head?: string; remark?: string },
+) {
+  return http.patch(`${API.ihDepartments}/${id}`, body) as Promise<Department>
+}
+
+export async function deleteDepartment(id: number) {
+  return http.delete(`${API.ihDepartments}/${id}`) as Promise<void>
+}
+
