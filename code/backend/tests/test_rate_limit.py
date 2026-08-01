@@ -32,6 +32,12 @@ def _make_request(path: str, ip: str = "127.0.0.1", auth: str | None = None) -> 
 async def _run():
     settings.rate_limit_enabled = True
 
+    # 重置全局 redis 连接池到当前 event loop（避免跨 asyncio.run 复用已关闭 loop 的连接）。
+    try:
+        await redis_client.connection_pool.disconnect()
+    except Exception:
+        pass
+
     # 用假 app 构造中间件（dispatch 不依赖 app）
     mw = RateLimitMiddleware(app=None)
     calls = {"n": 0}

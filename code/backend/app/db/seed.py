@@ -14,7 +14,15 @@ from app.db.session import SessionLocal
 from app.core.security import gen_totp_secret, hash_password, totp_provisioning_uri
 from app.models.mt_models import MtStore, MtTherapist
 from app.models.plat_models import PlatAiModel, PlatDataAsset, PlatAccount
-from app.models.ih_models import IhUser, IhPharmacist
+from app.models.ih_models import (
+    IhUser,
+    IhPharmacist,
+    IhDrug,
+    IhPharmacy,
+    IhDrugStock,
+    IhDepartment,
+    IhComplaint,
+)
 
 # 演示账号（⚠️ 仅本地 dev，生产须经密钥管理下发并强制改密）
 SEED_PASSWORD = "Ihm@2026!dev"
@@ -213,7 +221,19 @@ async def _upsert_account(db, data: dict) -> bool:
 
 
 async def seed_all() -> dict:
-    summary = {"stores": 0, "therapists": 0, "ai_models": 0, "data_assets": 0, "accounts": 0, "pharmacists": 0}
+    summary = {
+        "stores": 0,
+        "therapists": 0,
+        "ai_models": 0,
+        "data_assets": 0,
+        "accounts": 0,
+        "pharmacists": 0,
+        "ih_drugs": 0,
+        "pharmacies": 0,
+        "drug_stocks": 0,
+        "departments": 0,
+        "complaints": 0,
+    }
     async with SessionLocal() as db:
         store_ids: dict[str, int] = {}
         for s in STORES:
@@ -240,8 +260,68 @@ async def seed_all() -> dict:
                 acc_copy["store_id"] = first_store_id
             if await _upsert_account(db, acc_copy):
                 summary["accounts"] += 1
+        # ---- P3 双缺模块演示数据（幂等，按唯一键去重） ----
+        await _seed_p3_modules(db, summary)
         await db.commit()
     return summary
+
+
+async def _seed_p3_modules(db, summary: dict) -> None:
+    # 演示药品（供库存维度关联）
+    demo_drug = await db.scalar(select(IhDrug).where(IhDrug.name == "示例布洛芬片", IhDrug.is_deleted.is_(False)))
+    if not demo_drug:
+        demo_drug = IhDrug(name="示例布洛芬片", otc_type="otc", spec="0.2g*24片", manufacturer="示例药业", status="on")
+        db.add(demo_drug)
+        await db.flush()
+        summary["ih_drugs"] += 1
+
+    # 演示药房
+    demo_pharmacy = await db.scalar(
+        select(IhPharmacy).where(IhPharmacy.name == "示例合作药房-海淀店", IhPharmacy.is_deleted.is_(False))
+    )
+    if not demo_pharmacy:
+        demo_pharmacy = IhPharmacy(
+            name="示例合作药房-海淀店", region="北京海淀", license_no="YLJYZZ-DEMO-001", status="active"
+        )
+        db.add(demo_pharmacy)
+        await db.flush()
+        summary["pharmacies"] += 1
+
+    # 演示库存（药品×药房维度）
+    if not await db.scalar(
+        select(IhDrugStock).where(
+            IhDrugStock.drug_id == demo_drug.id,
+            IhDrugStock.pharmacy_id == demo_pharmacy.id,
+            IhDrugStock.is_deleted.is_(False),
+        )
+    ):
+        db.add(
+            IhDrugStock(drug_id=demo_drug.id, pharmacy_id=demo_pharmacy.id, stock=500, safety_stock=100)
+        )
+        summary["drug_stocks"] += 1
+
+    # 演示科室
+    if not await db.scalar(
+        select(IhDepartment).where(IhDepartment.name == "示例康复医学科", IhDepartment.is_deleted.is_(False))
+    ):
+        db.add(IhDepartment(name="示例康复医学科", head="示例主任医师", remark="演示科室，可编辑/删除"))
+        summary["departments"] += 1
+
+    # 演示投诉（关联演示订单/用户，脱敏展示）
+    if not await db.scalar(
+        select(IhComplaint).where(IhComplaint.content == "示例：药品包装破损反馈", IhComplaint.is_deleted.is_(False))
+    ):
+        db.add(
+            IhComplaint(
+                order_id=1,
+                user_id=1,
+                type="quality",
+                content="示例：药品包装破损反馈",
+                status="resolved",
+                reply="已联系药房补发，已处理",
+            )
+        )
+        summary["complaints"] += 1
 
 
 def main() -> None:
@@ -251,7 +331,10 @@ def main() -> None:
     print(
         f"[seed] done: stores={count['stores']} therapists={count['therapists']} "
         f"ai_models={count['ai_models']} data_assets={count['data_assets']} "
-        f"accounts={count['accounts']} pharmacists={count['pharmacists']}"
+        f"accounts={count['accounts']} pharmacists={count['pharmacists']} "
+        f"ih_drugs={count['ih_drugs']} pharmacies={count['pharmacies']} "
+        f"drug_stocks={count['drug_stocks']} departments={count['departments']} "
+        f"complaints={count['complaints']}"
     )
     print(f"[seed] 后台演示账号密码（本地 dev）：{SEED_PASSWORD}")
 
