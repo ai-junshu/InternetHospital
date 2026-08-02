@@ -25,6 +25,7 @@ export default defineAppConfig({
     'pages/mt/risk/index',
     'pages/mt/effect/index',
     'pages/mt/scheduling/index',
+    'pages/mt/workbench/index',
   ],
   tabBar: {
     color: '#8c8c8c',
