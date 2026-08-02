@@ -6,12 +6,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import BusinessError, ErrorCode
 from app.core.response import success
 from app.core.deps import get_db, current_user, actor_of, require_role
-from app.models.ih_models import IhDoctor
+from app.models.ih_models import IhDepartment, IhDoctor
 from app.schemas.common import PageResult
 from app.schemas.ih import DoctorAuditIn, DoctorCreate, DoctorOut
 from app.services.audit import write_audit
 
 router = APIRouter(prefix="/doctors", tags=["ih-医师"])
+
+
+async def _attach_dept_names(db: AsyncSession, docs: list[IhDoctor]) -> None:
+    """H6：批量填充冗余显示字段 dept_name（按 dept_id 联表 ih_department）。"""
+    ids = {d.dept_id for d in docs if d.dept_id}
+    if not ids:
+        return
+    rows = (
+        await db.execute(select(IhDepartment.id, IhDepartment.name).where(IhDepartment.id.in_(ids)))
+    ).all()
+    name_map = {rid: rname for rid, rname in rows}
+    for d in docs:
+        if d.dept_id and d.dept_id in name_map:
+            d.dept_name = name_map[d.dept_id]  # type: ignore[attr-defined]
 
 
 @router.post("", response_model=None)
@@ -23,7 +37,14 @@ async def create_doctor(
     )
     if result.scalar_one_or_none():
         raise BusinessError(ErrorCode.PARAM_INVALID, "执业证书编号已存在")
-    doc = IhDoctor(**body.model_dump())
+    data = body.model_dump()
+    # H6：传入 dept_id 时，回写冗余字符串 dept（取科室名），保持下游兼容
+    if body.dept_id:
+        dep = await db.get(IhDepartment, body.dept_id)
+        if not dep:
+            raise BusinessError(ErrorCode.PARAM_INVALID, "dept_id 对应的科室不存在")
+        data["dept"] = dep.name
+    doc = IhDoctor(**data)
     db.add(doc)
     await db.commit()
     await db.refresh(doc)
@@ -36,6 +57,7 @@ async def create_doctor(
         after=DoctorOut.model_validate(doc).model_dump(mode="json"),
         ip=request.client.host if request.client else None,
     )
+    await _attach_dept_names(db, [doc])
     return success(data=DoctorOut.model_validate(doc))
 
 
@@ -44,12 +66,15 @@ async def list_doctors(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status: str | None = None,
+    dept_id: int | None = Query(None, description="按科室 id 过滤"),
     _auth: dict = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
     conds = [IhDoctor.is_deleted.is_(False)]
     if status:
         conds.append(IhDoctor.status == status)
+    if dept_id is not None:
+        conds.append(IhDoctor.dept_id == dept_id)
     total = await db.scalar(select(func.count()).select_from(IhDoctor).where(*conds)) or 0
     rows = (
         await db.execute(
@@ -60,6 +85,7 @@ async def list_doctors(
             .offset((page - 1) * page_size)
         )
     ).scalars().all()
+    await _attach_dept_names(db, list(rows))
     return success(
         data=PageResult(
             total=total,
@@ -75,6 +101,7 @@ async def get_doctor(doctor_id: int, _auth: dict = Depends(current_user), db: As
     doc = await db.get(IhDoctor, doctor_id)
     if not doc or doc.is_deleted:
         raise BusinessError(ErrorCode.RESOURCE_NOT_FOUND, "医师不存在")
+    await _attach_dept_names(db, [doc])
     return success(data=DoctorOut.model_validate(doc))
 
 
@@ -95,6 +122,7 @@ async def approve_doctor(
         actor_id=actor_of(_user), after={"id": doctor_id, "status": "approved"},
         ip=request.client.host if request.client else None,
     )
+    await _attach_dept_names(db, [doc])
     return success(data=DoctorOut.model_validate(doc))
 
 
@@ -117,4 +145,5 @@ async def reject_doctor(
         actor_id=actor_of(_user), after={"id": doctor_id, "status": "rejected"},
         ip=request.client.host if request.client else None,
     )
+    await _attach_dept_names(db, [doc])
     return success(data=DoctorOut.model_validate(doc))

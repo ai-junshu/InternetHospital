@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import actor_of, get_db, require_role
 from app.core.errors import BusinessError, ErrorCode
 from app.core.response import success
-from app.models.ih_models import IhDepartment
+from app.models.ih_models import IhDepartment, IhDoctor
 from app.schemas.common import PageResult
 from app.schemas.ih import DepartmentCreate, DepartmentOut, DepartmentUpdate
 from app.services.audit import write_audit
@@ -109,6 +109,17 @@ async def delete_department(
     d = await db.get(IhDepartment, department_id)
     if not d or d.is_deleted:
         raise BusinessError(ErrorCode.NOT_FOUND, "科室不存在")
+    # H6：删除（软删）科室前，若存在医师仍关联该科室，拒绝删除以避免脏数据。
+    ref_count = (
+        await db.scalar(
+            select(func.count()).select_from(IhDoctor).where(IhDoctor.dept_id == department_id)
+        )
+    ) or 0
+    if ref_count > 0:
+        raise BusinessError(
+            ErrorCode.PARAM_INVALID,
+            f"该科室仍被 {ref_count} 名医师关联，请先调整这些医师的科室后再删除",
+        )
     d.is_deleted = True
     await db.commit()
     await write_audit(

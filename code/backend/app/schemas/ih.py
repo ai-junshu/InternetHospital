@@ -46,7 +46,8 @@ class DoctorCreate(BaseModel):
     license_no: str
     title: Optional[str] = None
     hospital_id: Optional[int] = None
-    dept: Optional[str] = None
+    dept_id: Optional[int] = None  # H6：关联科室 id（替代 dept 字符串）
+    dept: Optional[str] = None     # 冗余过渡字段，可空
     good_at: Optional[str] = None
     consult_price: Optional[int] = None
     status: str = "pending"
@@ -57,7 +58,9 @@ class DoctorOut(BaseOut):
     license_no: str
     title: Optional[str] = None
     hospital_id: Optional[int] = None
-    dept: Optional[str] = None
+    dept_id: Optional[int] = None   # H6：关联科室 id
+    dept: Optional[str] = None      # 冗余过渡字段
+    dept_name: Optional[str] = None  # H6：返回时联表填充的科室名称
     good_at: Optional[str] = None
     consult_price: Optional[int] = None
     status: str

@@ -22,6 +22,11 @@ class IhDoctor(Base, TimestampMixin):
     license_no: Mapped[str] = mapped_column(String(64), unique=True)  # 执业证书编号
     title: Mapped[str | None] = mapped_column(String(32))
     hospital_id: Mapped[int | None] = mapped_column(Integer)
+    # H6：科室外键化。dept_id 关联 ih_department（nullable，平滑迁移）。
+    # dept 字符串保留作冗余过渡，便于历史数据与新结构并存。
+    dept_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ih_department.id"), nullable=True, index=True
+    )
     dept: Mapped[str | None] = mapped_column(String(32))
     good_at: Mapped[str | None] = mapped_column(String(255))
     consult_price: Mapped[int | None] = mapped_column(Integer)

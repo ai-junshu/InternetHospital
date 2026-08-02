@@ -12,17 +12,34 @@ from pydantic import BaseModel
 
 
 class RxResult(BaseModel):
-    """合理用药校验结果。"""
+    """合理用药校验结果。
+
+    兼容字段（conflicts / contraindications / dosage_warnings）保留以对接
+    既有 prescriptions 调用方与 HttpRxEngine 供应商契约；
+    新增字段（level / rule_source / suggestions / duplicate_warnings / special_population）
+    用于更精细的分级告警与处置建议（LocalRxEngine 产出）。
+    """
 
     provider: str
-    conflicts: list[dict[str, Any]] = []
-    contraindications: list[dict[str, Any]] = []
-    dosage_warnings: list[dict[str, Any]] = []
+    conflicts: list[dict[str, Any]] = []          # 用药冲突（相互作用）
+    contraindications: list[dict[str, Any]] = []   # 禁忌（孕期 / 过敏 / 肝肾功能）
+    dosage_warnings: list[dict[str, Any]] = []      # 剂量告警
+    duplicate_warnings: list[dict[str, Any]] = []   # 重复用药（同通用名）
+    special_population: list[dict[str, Any]] = []   # 特殊人群（老年 / 儿童 / 哺乳）
+    suggestions: list[str] = []                     # 处置建议（汇总）
     checked_at: str = ""
+    rule_source: str = ""                           # 规则来源标识（local_kb / mock / external）
+    level: str = "none"                             # 最高告警级别：none / low / medium / high
 
     @property
     def has_issue(self) -> bool:
-        return bool(self.conflicts or self.contraindications or self.dosage_warnings)
+        return bool(
+            self.conflicts
+            or self.contraindications
+            or self.dosage_warnings
+            or self.duplicate_warnings
+            or self.special_population
+        )
 
 
 class RxEngine(ABC):

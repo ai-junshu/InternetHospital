@@ -16,7 +16,9 @@ export interface Doctor {
   license_no: string
   title?: string
   hospital_id?: number
-  dept?: string
+  dept_id?: number   // H6：关联科室 id
+  dept?: string      // 冗余过渡字段
+  dept_name?: string // H6：科室名称（后端联表返回）
   good_at?: string
   consult_price?: number
   status: string
@@ -26,7 +28,7 @@ export async function listDoctors(params: {
   page?: number
   page_size?: number
   status?: string
-  dept?: string
+  dept_id?: number   // H6：按科室 id 过滤
 }) {
   return http.get(API.ihDoctors, { params }) as Promise<PageResult<Doctor>>
 }

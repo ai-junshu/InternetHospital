@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   PageContainer,
   ProTable,
@@ -38,11 +38,26 @@ const canEditDept = role === 'platform'
 
 function DoctorTab() {
   const actionRef = useRef<ActionType>()
+  // H6：科室筛选项（从科室列表动态加载）
+  const [deptOptions, setDeptOptions] = useState<{ label: string; value: number }[]>([])
+  useEffect(() => {
+    listDepartments({ page: 1, page_size: 200 }).then((res) =>
+      setDeptOptions(res.items.map((d) => ({ label: d.name, value: d.id }))),
+    )
+  }, [])
   const columns: ProColumns<Doctor>[] = [
     { title: 'ID', dataIndex: 'id', width: 72 },
     { title: '执业证号', dataIndex: 'license_no', width: 150 },
     { title: '职称', dataIndex: 'title', width: 100 },
-    { title: '科室', dataIndex: 'dept', width: 110 },
+    // H6：优先展示联表返回的 dept_name，兼容旧 dept 字符串
+    {
+      title: '科室',
+      dataIndex: 'dept_name',
+      width: 120,
+      valueType: 'select',
+      fieldProps: { options: deptOptions, allowClear: true, placeholder: '按科室筛选' },
+      render: (_, r) => r.dept_name || r.dept || '—',
+    },
     { title: '擅长', dataIndex: 'good_at', ellipsis: true },
     { title: '问诊费(分)', dataIndex: 'consult_price', width: 110 },
     {
@@ -93,7 +108,7 @@ function DoctorTab() {
           page: params.current,
           page_size: params.pageSize,
           status: params.status as string,
-          dept: params.dept as string,
+          dept_id: params.dept_name ? Number(params.dept_name) : undefined,
         })
         return { data: res.items, total: res.total, success: true }
       }}

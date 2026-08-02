@@ -55,9 +55,15 @@ class Settings(BaseSettings):
     # 仅 kms_provider=aws 时使用：KMS Key Id（arn/alias）。
     kms_aws_key_id: str = ""
 
-    # 合理用药引擎（第14章第三方对接）：默认 mock，生产可切换 http 并配置 base_url
-    rx_engine_provider: str = "mock"
+    # 合理用药引擎（第14章第三方对接）：
+    # - local（默认）：内置本地临床知识库真引擎，零外部依赖，覆盖相互作用/禁忌/
+    #   重复用药/特殊人群/剂量告警，可经 rx_engine_kb_path 外置规则集。
+    # - http：对接外部付费供应商（HttpRxEngine 骨架），生产可配置 base_url。
+    # - mock：内置最小规则集，仅作降级基准与单测对照。
+    rx_engine_provider: str = "local"
     rx_engine_base_url: str = ""
+    # 可选：指向外部 JSON 知识库（覆盖内置规则集）。留空则使用内置 DEFAULT_KB。
+    rx_engine_kb_path: str = ""
 
     # ---------------- P5 性能容灾：Redis 缓存 / 接口限流 ----------------
     # 缓存默认 TTL（秒）；仅缓存脱敏/聚合/参考类只读数据，绝不缓存 PII 与密文。
