@@ -2,6 +2,7 @@
 
 MVP：创建订单（rx/otc）→ 支付（占位微信预支付，落 ih_payment）。
 """
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -115,13 +116,24 @@ async def pay_order(
         pay = IhPayment(order_no=order.order_no, amount=order.amount, pay_channel=body.channel)
         db.add(pay)
 
-    # 统一下单（dev 沙箱返回模拟 prepay_id + 签名参数）
-    pre = create_prepay(
-        out_trade_no=order.order_no,
-        amount=order.amount,
-        description=body.description or f"医疗订单 {order.order_no}",
-        openid=body.openid or "",
-    )
+    # 统一下单：沙箱返回模拟 prepay_id + 签名参数；生产走真实微信 APIv3 JSAPI（H3）。
+    # 生产分支缺商户凭证/网关不可达时安全降级，不崩溃主链路（返回统一错误模型）。
+    try:
+        pre = create_prepay(
+            out_trade_no=order.order_no,
+            amount=order.amount,
+            description=body.description or f"医疗订单 {order.order_no}",
+            openid=body.openid or "",
+        )
+    except RuntimeError as e:
+        # 生产微信支付未配置或网关失败：降级为业务错误，主链仍可查/可重试
+        logging.warning("微信支付预下单降级(不阻断主链路): %s", e)
+        raise BusinessError(
+            ErrorCode.PARAM_INVALID,
+            "微信支付暂不可用（生产凭证未配置或网关异常），请稍后重试或联系平台运营",
+        ) from e
+    except ValueError as e:
+        raise BusinessError(ErrorCode.PARAM_INVALID, f"支付金额非法: {e}") from e
     pay.prepay_id = pre.prepay_id
     pay.trade_state = "pending"
     pay.mch_id = settings.wxpay_mch_id or None

@@ -20,4 +20,6 @@ export const API = {
   effectTracking: '/mt/effect-tracking',
   repurchasePredictions: '/mt/repurchase-predictions',
   riskProfiles: '/mt/risk-profiles',
+  stores: '/mt/stores',
+  storeMetrics: '/mt/store-metrics',
 }

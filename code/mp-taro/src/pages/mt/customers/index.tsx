@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, Button, Input } from '@tarojs/components'
 import Taro, { useLoad } from '@tarojs/taro'
 import { useState } from 'react'
-import { listCustomers, authorizeCustomer, type Customer } from '@/services/mt'
+import { listCustomers, authorizeCustomer, listStores, type Customer, type Store } from '@/services/mt'
 
 export default function MtCustomers() {
   const [list, setList] = useState<Customer[]>([])
@@ -9,6 +9,7 @@ export default function MtCustomers() {
   const [loading, setLoading] = useState(false)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [storeId, setStoreId] = useState<number | undefined>(undefined)
 
   const load = (p = 1) => {
     setLoading(true)
@@ -21,7 +22,13 @@ export default function MtCustomers() {
       .finally(() => setLoading(false))
   }
 
-  useLoad(() => load(1))
+  useLoad(() => {
+    load(1)
+    // 默认取首个门店作为新建客户的归属门店（否则 source_store_id=NULL 导致 RLS 失效）
+    listStores({ page: 1, page_size: 1 })
+      .then((r) => { if (r.items && r.items.length) setStoreId(r.items[0].id) })
+      .catch(() => {})
+  })
 
   const addCustomer = () => {
     if (!name.trim()) {
@@ -31,7 +38,7 @@ export default function MtCustomers() {
     Taro.showLoading({ title: '提交中' })
     // 简易建客户（门店员工代录，等保三级要求姓名/手机号脱敏存储）
     import('@/services/mt').then(({ createCustomer }) =>
-      createCustomer({ name_mask: name.trim(), phone_mask: phone.trim() })
+      createCustomer({ name_mask: name.trim(), phone_mask: phone.trim(), source_store_id: storeId })
         .then(() => {
           Taro.showToast({ title: '已创建', icon: 'success' })
           setName('')

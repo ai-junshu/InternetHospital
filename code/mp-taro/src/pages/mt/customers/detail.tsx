@@ -1,7 +1,7 @@
 import { View, Text, Button } from '@tarojs/components'
 import Taro, { useLoad, useRouter } from '@tarojs/taro'
-import { useEffect, useState } from 'react'
-import { listCarePlans, listPainAssessments, listTreatmentRecords, type Customer } from '@/services/mt'
+import { useState } from 'react'
+import { getCustomer, listCarePlans, listPainAssessments, listTreatmentRecords, type Customer } from '@/services/mt'
 
 export default function MtCustomerDetail() {
   const router = useRouter()
@@ -12,14 +12,18 @@ export default function MtCustomerDetail() {
   const [records, setRecords] = useState<number>(0)
 
   useLoad(() => {
+    if (!id) {
+      Taro.showToast({ title: '缺少客户ID', icon: 'none' })
+      return
+    }
+    // 真实拉取客户详情（替代伪造对象，避免掩盖未授权状态）
+    getCustomer(id)
+      .then((c) => setCustomer(c))
+      .catch(() => Taro.showToast({ title: '客户加载失败', icon: 'none' }))
     listCarePlans({ customer_id: id, page_size: 1 }).then((r) => setPlans(r.total ?? 0)).catch(() => {})
     listPainAssessments({ customer_id: id, page_size: 1 }).then((r) => setPains(r.total ?? 0)).catch(() => {})
     listTreatmentRecords({ customer_id: id, page_size: 1 }).then((r) => setRecords(r.total ?? 0)).catch(() => {})
   })
-
-  useEffect(() => {
-    if (id) setCustomer({ id, auth_status: 'authorized' })
-  }, [id])
 
   return (
     <View className='mt-page'>

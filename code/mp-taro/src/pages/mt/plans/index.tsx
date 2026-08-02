@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, Button, Input } from '@tarojs/components'
 import Taro, { useLoad, useRouter } from '@tarojs/taro'
 import { useState } from 'react'
-import { listCarePlans, createCarePlan, type CarePlan } from '@/services/mt'
+import { listCarePlans, type CarePlan } from '@/services/mt'
 
 export default function MtPlans() {
   const router = useRouter()
@@ -12,6 +12,10 @@ export default function MtPlans() {
   const [painType, setPainType] = useState('')
 
   const load = () => {
+    if (!customerId) {
+      Taro.showToast({ title: '缺少客户ID，请从客户详情进入', icon: 'none' })
+      return
+    }
     listCarePlans({ customer_id: customerId, page: 1, page_size: 20 })
       .then((r) => setList(r.items || []))
       .catch((e) => Taro.showToast({ title: (e?.message as string) || '加载失败', icon: 'none' }))
@@ -19,16 +23,17 @@ export default function MtPlans() {
   useLoad(() => load())
 
   const submit = () => {
-    if (!customerId) return
-    Taro.showLoading({ title: '提交中' })
-    createCarePlan({ customer_id: customerId, doctor_advice_id: 0, goal, cycle, pain_type: painType })
-      .then(() => {
-        Taro.showToast({ title: '已创建', icon: 'success' })
-        setGoal(''); setCycle(''); setPainType('')
-        load()
-      })
-      .catch((e) => Taro.showToast({ title: (e?.message as string) || '创建失败', icon: 'none' }))
-      .finally(() => Taro.hideLoading())
+    if (!customerId) {
+      Taro.showToast({ title: '缺少客户ID，请从客户详情进入', icon: 'none' })
+      return
+    }
+    // 合规强规则1：照护计划必须关联执业医师方案建议/处方（doctor_advice_id）。
+    // 小程序侧当前无医师建议列表选择器，提示运营后台配置后再创建，禁止传 0。
+    Taro.showModal({
+      title: '需关联医师建议',
+      content: '照护计划须关联执业医师出具的方案建议/处方。请在运营后台为该客户生成医师建议后重试。',
+      showCancel: false,
+    })
   }
 
   return (

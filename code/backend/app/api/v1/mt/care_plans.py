@@ -20,6 +20,13 @@ router = APIRouter(prefix="/care-plans", tags=["mt-调理方案"])
 async def create_care_plan(
     body: CarePlanCreate, request: Request, _user: dict = Depends(require_role("store", "therapist", "platform", "xingyao")), db: AsyncSession = Depends(get_db)
 ):
+    # 合规强规则1：方案必须关联执业医师出具的方案建议/处方 ID（doctor_advice_id>0），
+    # 禁止以 0 等无效值冒充医师建议（等保三级留痕合规）。
+    if not body.doctor_advice_id or body.doctor_advice_id <= 0:
+        raise BusinessError(
+            ErrorCode.PARAM_INVALID,
+            "照护计划必须关联执业医师出具的方案建议/处方（doctor_advice_id 无效）",
+        )
     rec = await recommend_plan(
         body.customer_id, body.age or 0, body.pain_score or 0, body.chronic_count or 0, body.pain_type
     )

@@ -33,6 +33,10 @@ export async function authorizeCustomer(customerId: number, body?: { auth_file_u
   return request<Customer>(`${API.customers}/${customerId}/authorize`, { method: 'PATCH', data: body || {} })
 }
 
+export async function getCustomer(customerId: number) {
+  return request<Customer>(`${API.customers}/${customerId}`)
+}
+
 // ---------------- 疼痛评估 ----------------
 export interface PainAssessment {
   id: number
@@ -118,6 +122,43 @@ export async function createTreatmentRecord(body: {
   remark?: string
 }) {
   return request<TreatmentRecord>(API.treatmentRecords, { method: 'POST', data: body })
+}
+
+// 合规强规则2：治疗记录不可删，仅可更正留痕（PATCH 写入修订表 + 审计前后对照）
+export async function reviseTreatmentRecord(
+  recordId: number,
+  body: {
+    products_json?: Record<string, unknown>
+    oper_sites_json?: Record<string, unknown>
+    nps?: number
+    images_json?: Record<string, unknown>
+    remark?: string
+    reason: string
+  },
+) {
+  return request<TreatmentRecord>(`${API.treatmentRecords}/${recordId}`, { method: 'PATCH', data: body })
+}
+
+// ---------------- 门店 / 调理师 ----------------
+export interface Store {
+  id: number
+  name?: string
+  region?: string
+  address?: string
+}
+
+export async function listStores(params: { page?: number; page_size?: number; region?: string }) {
+  return request<PageResult<Store>>(API.stores, { data: params })
+}
+
+export interface Therapist {
+  id: number
+  store_id: number
+  name_mask?: string
+}
+
+export async function listTherapists(storeId: number, params?: { page?: number; page_size?: number }) {
+  return request<PageResult<Therapist>>(`${API.stores}/${storeId}/therapists`, { data: params })
 }
 
 // ---------------- 效果四档（合规强规则3） ----------------

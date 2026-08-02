@@ -16,7 +16,10 @@ export default function MtPain() {
 
   const submit = () => {
     const s = Number(score)
-    if (!customerId) return
+    if (!customerId) {
+      Taro.showToast({ title: '缺少客户ID，请从客户详情进入', icon: 'none' })
+      return
+    }
     if (!Number.isFinite(s) || s < 0 || s > 10) {
       Taro.showToast({ title: '疼痛评分 0-10', icon: 'none' })
       return

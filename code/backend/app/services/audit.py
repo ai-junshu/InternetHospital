@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.plat_models import PlatAuditLog
+from app.utils.mask import mask_json
 
 
 def compute_audit_hash(
@@ -54,6 +55,10 @@ async def write_audit(
     after: Optional[dict] = None,
     ip: Optional[str] = None,
 ) -> None:
+    # 落库前脱敏：before/after 中敏感字段（身份证/手机/姓名等）明文不入审计表
+    masked_before = mask_json(before) if before else before
+    masked_after = mask_json(after) if after else after
+
     # 取最近一条记录的 hash 作为 prev_hash，count+1 作为 seq_no（同事务内）
     last = await db.scalar(select(PlatAuditLog).order_by(PlatAuditLog.id.desc()).limit(1))
     prev_hash = last.hash if last else ""
@@ -64,8 +69,8 @@ async def write_audit(
         role=role,
         action=action,
         resource=resource,
-        before_json=before,
-        after_json=after,
+        before_json=masked_before,
+        after_json=masked_after,
         ip=ip,
         seq_no=seq_no,
         prev_hash=prev_hash,
@@ -77,8 +82,8 @@ async def write_audit(
         role=role,
         action=action,
         resource=resource,
-        before=before,
-        after=after,
+        before=masked_before,
+        after=masked_after,
         ip=ip,
     )
     db.add(rec)
