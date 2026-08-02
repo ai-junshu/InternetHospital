@@ -23,6 +23,8 @@ export default defineAppConfig({
     'pages/mt/records/index',
     'pages/mt/repurchase/index',
     'pages/mt/risk/index',
+    'pages/mt/effect/index',
+    'pages/mt/scheduling/index',
   ],
   tabBar: {
     color: '#8c8c8c',

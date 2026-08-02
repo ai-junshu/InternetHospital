@@ -39,6 +39,8 @@ export default function MtCustomerDetail() {
       <Button className='mt-btn' onClick={() => Taro.navigateTo({ url: `/pages/mt/pain/index?customer_id=${id}` })}>新增疼痛评估</Button>
       <Button className='mt-btn' onClick={() => Taro.navigateTo({ url: `/pages/mt/plans/index?customer_id=${id}` })}>新建照护计划</Button>
       <Button className='mt-btn' onClick={() => Taro.navigateTo({ url: `/pages/mt/records/index?customer_id=${id}` })}>录入治疗记录</Button>
+      <Button className='mt-btn' onClick={() => Taro.navigateTo({ url: `/pages/mt/effect/index?customer_id=${id}` })}>效果四档</Button>
+      <Button className='mt-btn' onClick={() => Taro.navigateTo({ url: `/pages/mt/scheduling/index` })}>排班与标签</Button>
     </View>
   )
 }

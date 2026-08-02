@@ -154,6 +154,7 @@ export async function listStores(params: { page?: number; page_size?: number; re
 export interface Therapist {
   id: number
   store_id: number
+  name?: string
   name_mask?: string
 }
 
@@ -226,4 +227,66 @@ export async function listRiskProfiles(params: { page?: number; page_size?: numb
 
 export async function predictRisk(body: { customer_id: number; age?: number; bmi?: number; comorbidity_count?: number }) {
   return request<RiskProfile>(API.riskProfiles, { method: 'POST', data: body })
+}
+
+// ---------------- 排班（Scheduling，按调理师维度） ----------------
+// 后端路由：POST/GET /mt/therapists/{therapist_id}/schedules
+export interface Schedule {
+  id?: number
+  therapist_id?: number
+  store_id?: number
+  work_date?: string
+  am_pm?: string // morning/afternoon/evening
+  start_time?: string
+  end_time?: string
+  status?: string // open/closed
+  capacity?: number
+  remark?: string
+}
+
+export async function listSchedules(therapistId: number, params?: { page?: number; page_size?: number }) {
+  return request<PageResult<Schedule>>(`${API.therapistSchedules}/${therapistId}/schedules`, { data: params || {} })
+}
+
+export async function createSchedule(therapistId: number, body: {
+  therapist_id: number
+  work_date: string
+  am_pm?: string
+  start_time: string
+  end_time: string
+  capacity?: number
+  remark?: string
+}) {
+  return request<Schedule>(`${API.therapistSchedules}/${therapistId}/schedules`, { method: 'POST', data: body })
+}
+
+// ---------------- 标签（Tags，目录 + 分配给调理师） ----------------
+// 后端路由：GET/POST /mt/therapist-tags（目录）；POST/DELETE /mt/therapists/{therapist_id}/tags（分配/解绑）
+export interface Tag {
+  id: number
+  name: string
+  category?: string
+  description?: string
+}
+
+export async function listTags(params: { page?: number; page_size?: number; category?: string }) {
+  return request<PageResult<Tag>>(API.therapistTags, { data: params })
+}
+
+// 仅 platform/xingyao 角色可创建标签目录
+export async function createTag(body: { name: string; category?: string; description?: string }) {
+  return request<Tag>(API.therapistTags, { method: 'POST', data: body })
+}
+
+// 将标签分配给调理师（store/therapist/platform 均可）
+export async function assignTag(therapistId: number, tagId: number) {
+  return request<{ therapist_id: number; tag_id: number }>(
+    `${API.therapistSchedules}/${therapistId}/tags`,
+    { method: 'POST', data: { tag_id: tagId } },
+  )
+}
+
+// 解绑调理师标签（非删除目录）
+export async function unassignTag(therapistId: number, tagId: number) {
+  return request<{ message?: string }>(`${API.therapistSchedules}/${therapistId}/tags/${tagId}`, { method: 'DELETE' })
 }

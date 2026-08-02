@@ -22,4 +22,6 @@ export const API = {
   riskProfiles: '/mt/risk-profiles',
   stores: '/mt/stores',
   storeMetrics: '/mt/store-metrics',
+  therapistSchedules: '/mt/therapists',
+  therapistTags: '/mt/therapist-tags',
 }
