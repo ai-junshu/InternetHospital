@@ -60,7 +60,7 @@ function DoctorTab() {
           <Space>
             <a
               onClick={async () => {
-                await approveDoctor(r.id)
+                await approveDoctor(r.id, 1)
                 actionRef.current?.reload()
                 message.success('医师已通过')
               }}
@@ -69,7 +69,7 @@ function DoctorTab() {
             </a>
             <a
               onClick={async () => {
-                await rejectDoctor(r.id)
+                await rejectDoctor(r.id, 1)
                 actionRef.current?.reload()
                 message.success('医师已驳回')
               }}
@@ -156,7 +156,7 @@ function DeptTab() {
                   trigger={<Button type="primary">新增科室</Button>}
                   onFinish={async (v) => {
                     try {
-                      await createDepartment({ name: v.name, head: v.head, remark: v.remark })
+                      await createDepartment({ name: v.name, head: v.head ?? undefined, remark: v.remark ?? undefined })
                       message.success('已新增')
                       actionRef.current?.reload()
                       return true

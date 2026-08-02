@@ -48,6 +48,7 @@ export interface Prescription {
   pharmacist_id?: number
   diagnose?: string
   status: string
+  items_json?: Record<string, unknown>
   rx_check_json?: Record<string, unknown>
 }
 

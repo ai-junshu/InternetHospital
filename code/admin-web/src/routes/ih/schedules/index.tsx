@@ -9,7 +9,7 @@ import {
   type ActionType,
   type ProColumns,
 } from '@ant-design/pro-components'
-import { Button, App, Popconfirm } from 'antd'
+import { Button, App, Popconfirm, Tag } from 'antd'
 import { listSchedules, createSchedule, deleteSchedule, type IhSchedule } from '@/services/ih'
 
 export default function ScheduleAdmin() {

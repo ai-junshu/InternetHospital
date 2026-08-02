@@ -17,6 +17,8 @@ class ErrorCode(IntEnum):
     # 1xxx 参数校验
     PARAM_INVALID = 1001
     PARAM_MISSING = 1002
+    # 向后兼容别名（旧调用点使用 BAD_REQUEST，语义等同 PARAM_INVALID）
+    BAD_REQUEST = 1001
 
     # 2xxx 鉴权 / 权限
     UNAUTHORIZED = 2001
@@ -26,6 +28,8 @@ class ErrorCode(IntEnum):
     # 3xxx 业务规则
     PRESCRIPTION_PENDING = 3001
     RESOURCE_NOT_FOUND = 3004
+    # 向后兼容别名（旧调用点使用 NOT_FOUND，语义等同 RESOURCE_NOT_FOUND）
+    NOT_FOUND = 3004
 
     # 4xxx 合规拦截
     COMPLIANCE_BLOCKED = 4001

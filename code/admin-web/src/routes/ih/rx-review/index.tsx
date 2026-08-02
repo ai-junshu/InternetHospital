@@ -162,7 +162,7 @@ export default function RxReview() {
               label="审核意见"
               placeholder="驳回时必填"
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNote(e.target.value)}
               style={{ marginTop: 16 }}
             />
           </>
