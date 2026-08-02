@@ -50,6 +50,10 @@ async def _resolve_subject(
     - doctor：subject=IhDoctor.id（缺省按 user 关联首个档案），role=doctor
     - pharmacist：subject=IhPharmacist.id（缺省按 user 关联首个档案），role=pharmacist
     返回 (subject_id, role)。
+
+    ⚠️ 合规红线（等保三级 / 互联网医院执业资质）：无关联执业档案时**不得**自动建档。
+    仅当 settings.allow_dev_auto_profile=True（本地 dev 联调）才创建占位档案；
+    生产默认 False，直接 FORBIDDEN，杜绝任意微信用户伪造医师/药师身份。
     """
     role = body.role if body.role in WX_LOGIN_ROLES else "patient"
     if role == "patient":
@@ -63,7 +67,11 @@ async def _resolve_subject(
                 await db.scalar(select(IhDoctor).where(IhDoctor.user_id == user.id))
             )
         if doc is None:
-            # 开发态：未预置医师档案时，按 user 关联创建一个（status=pending）
+            if not settings.allow_dev_auto_profile:
+                raise BusinessError(
+                    ErrorCode.FORBIDDEN, "账号无执业医师档案，请先完成资质认证"
+                )
+            # 仅 dev：未预置医师档案时，按 user 关联创建一个（status=pending）
             doc = IhDoctor(user_id=user.id, license_no=f"DEV-DOC-{user.id}")
             db.add(doc)
             await db.flush()
@@ -77,6 +85,10 @@ async def _resolve_subject(
             await db.scalar(select(IhPharmacist).where(IhPharmacist.user_id == user.id))
         )
     if pha is None:
+        if not settings.allow_dev_auto_profile:
+            raise BusinessError(
+                ErrorCode.FORBIDDEN, "账号无执业药师档案，请先完成资质认证"
+            )
         pha = IhPharmacist(user_id=user.id, license_no=f"DEV-PHA-{user.id}")
         db.add(pha)
         await db.flush()

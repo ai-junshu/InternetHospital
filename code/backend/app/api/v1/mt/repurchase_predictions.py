@@ -71,8 +71,6 @@ async def list_repurchase_predictions(
         conds.append(MtRepurchasePrediction.customer_id == customer_id)
     if scope is not None:
         conds.append(MtRepurchasePrediction.customer_id.in_(customer_ids_for_store(scope)))
-    if customer_id is not None:
-        conds.append(MtRepurchasePrediction.customer_id == customer_id)
     total = (
         await db.scalar(
             select(func.count()).select_from(MtRepurchasePrediction).where(*conds)

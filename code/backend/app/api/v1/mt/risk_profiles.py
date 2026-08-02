@@ -5,22 +5,41 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import BusinessError, ErrorCode
 from app.core.response import success
 from app.core.deps import get_db, require_role, actor_of, store_scope, customer_ids_for_store
-from app.models.mt_models import MtRiskProfile
+from app.models.mt_models import MtCustomer, MtRiskProfile
 from app.schemas.common import PageResult
 from app.schemas.mt import RiskProfileIn, RiskProfileOut
 from app.services.ai_client import risk_profile
 from app.services.audit import write_audit
+from app.services.pred_log import create_pred_log
 
 router = APIRouter(prefix="/risk-profiles", tags=["mt-风险画像"])
 
 
 @router.post("", response_model=None)
 async def predict_risk(
-    body: RiskProfileIn, request: Request, _user: dict = Depends(require_role("store", "therapist", "platform", "xingyao")), db: AsyncSession = Depends(get_db)
+    body: RiskProfileIn,
+    request: Request,
+    _user: dict = Depends(require_role("store", "therapist", "platform", "xingyao")),
+    scope: int | None = Depends(store_scope),
+    db: AsyncSession = Depends(get_db),
 ):
     """调用 AI 风险画像，结果回写 mt_risk_profile（AI 不可用则降级，仅落基础记录）。"""
+    # RLS 写侧校验：门店角色只能为本店客户生成画像（scope=None 表示平台全量/未下钻）
+    if scope is not None:
+        owned = await db.scalar(
+            select(func.count())
+            .select_from(MtCustomer)
+            .where(
+                MtCustomer.id == body.customer_id,
+                MtCustomer.source_store_id == scope,
+                MtCustomer.is_deleted.is_(False),
+            )
+        )
+        if not owned:
+            raise BusinessError(ErrorCode.FORBIDDEN, "无权操作该客户数据")
     rec = await risk_profile(
         body.customer_id, body.age, body.bmi, body.comorbidity_count
     )
@@ -61,11 +80,14 @@ async def list_risk_profiles(
     page_size: int = 20,
     customer_id: int | None = None,
     _auth: dict = Depends(require_role("store", "therapist", "platform", "xingyao")),
+    scope: int | None = Depends(store_scope),
     db: AsyncSession = Depends(get_db),
 ):
     conds = [MtRiskProfile.is_deleted.is_(False)]
     if customer_id is not None:
         conds.append(MtRiskProfile.customer_id == customer_id)
+    if scope is not None:
+        conds.append(MtRiskProfile.customer_id.in_(customer_ids_for_store(scope)))
     total = (
         await db.scalar(
             select(func.count()).select_from(MtRiskProfile).where(*conds)

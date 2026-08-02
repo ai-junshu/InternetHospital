@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     # 防重放
     replay_window_seconds: int = 300
 
+    # ---------------- 执业身份自动建档开关（合规红线，等保三级 / 互联网医院资质） ----------------
+    # 微信登录时若 role=doctor/pharmacist 但无关联执业档案：
+    # - False（默认，生产）：直接拒绝（FORBIDDEN），杜绝任意用户伪造医师/药师身份。
+    # - True（仅本地 dev 联调）：自动创建 DEV-DOC/DEV-PHA 占位档案（status=pending）。
+    # ⚠️ 生产环境严禁置 True；执业资质必须经平台审核后落库。
+    allow_dev_auto_profile: bool = False
+
     # 双因子（TOTP / RFC 6238，P4 安全增强）
     totp_issuer: str = "互联网医疗中心"
 

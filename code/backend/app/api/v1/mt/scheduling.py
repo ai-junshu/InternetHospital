@@ -33,11 +33,18 @@ class _TagAssignIn(BaseModel):
     tag_id: int
 
 
-async def _load_therapist(db: AsyncSession, therapist_id: int, user: dict) -> MtTherapist:
+async def _load_therapist(
+    db: AsyncSession, therapist_id: int, scope: int | None
+) -> MtTherapist:
+    """加载调理师并做行级隔离校验。
+
+    scope 由路由层 Depends(store_scope) 注入：
+    - store/therapist：强制为 JWT store_id，仅能操作本店调理师；
+    - platform/xingyao：None 表示全量，或为下钻指定的 store_id。
+    """
     th = await db.get(MtTherapist, therapist_id)
     if not th or th.is_deleted:
         raise BusinessError(ErrorCode.NOT_FOUND, "调理师不存在")
-    scope = store_scope(user, db)
     if scope is not None and th.store_id != scope:
         raise BusinessError(ErrorCode.FORBIDDEN, "无权操作该店调理师")
     return th
@@ -50,9 +57,10 @@ async def create_therapist_schedule(
     body: TherapistScheduleCreate,
     request: Request,
     user: dict = Depends(require_role("store", "therapist", "platform", "xingyao")),
+    scope: int | None = Depends(store_scope),
     db: AsyncSession = Depends(get_db),
 ):
-    th = await _load_therapist(db, therapist_id, user)
+    th = await _load_therapist(db, therapist_id, scope)
     sch = MtTherapistSchedule(
         therapist_id=th.id,
         store_id=th.store_id,
@@ -83,9 +91,10 @@ async def list_therapist_schedules(
     am_pm: str | None = None,
     status: str | None = None,
     user: dict = Depends(require_role("store", "therapist", "platform", "xingyao")),
+    scope: int | None = Depends(store_scope),
     db: AsyncSession = Depends(get_db),
 ):
-    await _load_therapist(db, therapist_id, user)  # 行级隔离校验
+    await _load_therapist(db, therapist_id, scope)  # 行级隔离校验
     conds = [MtTherapistSchedule.therapist_id == therapist_id, MtTherapistSchedule.is_deleted.is_(False)]
     if work_date is not None:
         conds.append(MtTherapistSchedule.work_date == work_date)
@@ -117,9 +126,10 @@ async def update_therapist_schedule(
     body: TherapistScheduleUpdate,
     request: Request,
     user: dict = Depends(require_role("store", "therapist", "platform", "xingyao")),
+    scope: int | None = Depends(store_scope),
     db: AsyncSession = Depends(get_db),
 ):
-    await _load_therapist(db, therapist_id, user)
+    await _load_therapist(db, therapist_id, scope)
     sch = await db.get(MtTherapistSchedule, schedule_id)
     if not sch or sch.is_deleted or sch.therapist_id != therapist_id:
         raise BusinessError(ErrorCode.NOT_FOUND, "排班不存在")
@@ -145,9 +155,10 @@ async def delete_therapist_schedule(
     schedule_id: int,
     request: Request,
     user: dict = Depends(require_role("store", "therapist", "platform", "xingyao")),
+    scope: int | None = Depends(store_scope),
     db: AsyncSession = Depends(get_db),
 ):
-    await _load_therapist(db, therapist_id, user)
+    await _load_therapist(db, therapist_id, scope)
     sch = await db.get(MtTherapistSchedule, schedule_id)
     if not sch or sch.is_deleted or sch.therapist_id != therapist_id:
         raise BusinessError(ErrorCode.NOT_FOUND, "排班不存在")
@@ -222,9 +233,10 @@ async def create_tag(
 async def list_therapist_tags(
     therapist_id: int,
     user: dict = Depends(require_role("store", "therapist", "platform", "xingyao")),
+    scope: int | None = Depends(store_scope),
     db: AsyncSession = Depends(get_db),
 ):
-    await _load_therapist(db, therapist_id, user)
+    await _load_therapist(db, therapist_id, scope)
     rows = (
         await db.execute(
             select(MtTherapistTagRel, MtTherapistTag)
@@ -252,9 +264,10 @@ async def assign_therapist_tag(
     body: _TagAssignIn,
     request: Request,
     user: dict = Depends(require_role("store", "therapist", "platform", "xingyao")),
+    scope: int | None = Depends(store_scope),
     db: AsyncSession = Depends(get_db),
 ):
-    await _load_therapist(db, therapist_id, user)
+    await _load_therapist(db, therapist_id, scope)
     tag = await db.get(MtTherapistTag, body.tag_id)
     if not tag or tag.is_deleted:
         raise BusinessError(ErrorCode.NOT_FOUND, "标签不存在")
@@ -290,9 +303,10 @@ async def unassign_therapist_tag(
     tag_id: int,
     request: Request,
     user: dict = Depends(require_role("store", "therapist", "platform", "xingyao")),
+    scope: int | None = Depends(store_scope),
     db: AsyncSession = Depends(get_db),
 ):
-    await _load_therapist(db, therapist_id, user)
+    await _load_therapist(db, therapist_id, scope)
     rel = (
         await db.execute(
             select(MtTherapistTagRel).where(

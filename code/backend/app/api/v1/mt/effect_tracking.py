@@ -11,9 +11,16 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import actor_of, get_db, require_role, store_scope
+from app.core.deps import (
+    actor_of,
+    customer_ids_for_store,
+    get_db,
+    require_role,
+    store_scope,
+)
+from app.core.errors import BusinessError, ErrorCode
 from app.core.response import success
-from app.models.mt_models import MtEffectTracking
+from app.models.mt_models import MtCustomer, MtEffectTracking
 from app.schemas.common import PageResult
 from app.schemas.mt import *
 from app.services.audit import write_audit
@@ -30,6 +37,19 @@ async def create_effect_tracking(
     scope: int | None = Depends(store_scope),
     db: AsyncSession = Depends(get_db),
 ):
+    # RLS 写侧校验：门店角色只能为本店客户建效果跟踪（scope=None 表示平台全量/未下钻）
+    if scope is not None:
+        owned = await db.scalar(
+            select(func.count())
+            .select_from(MtCustomer)
+            .where(
+                MtCustomer.id == body.customer_id,
+                MtCustomer.source_store_id == scope,
+                MtCustomer.is_deleted.is_(False),
+            )
+        )
+        if not owned:
+            raise BusinessError(ErrorCode.FORBIDDEN, "无权操作该客户数据")
     # 调用判定服务生成字段（不直接提交，整合进本事务）
     fields = await build_effect_tracking(
         db,
@@ -91,6 +111,10 @@ async def list_effect_tracking(
         stmt = stmt.where(MtEffectTracking.plan_id == plan_id)
     if effect_level is not None:
         stmt = stmt.where(MtEffectTracking.effect_level == effect_level)
+    if scope is not None:
+        stmt = stmt.where(
+            MtEffectTracking.customer_id.in_(customer_ids_for_store(scope))
+        )
     total_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await db.execute(total_stmt)).scalar() or 0
     stmt = stmt.order_by(MtEffectTracking.id.desc()).offset((page - 1) * page_size).limit(page_size)
